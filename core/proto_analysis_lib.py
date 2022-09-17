@@ -194,6 +194,57 @@ def visualize_diversity_by_bin(df, sumdir):
     plt.show()
 
 
+def filter_visualize_codes(G, outdir, thresh=2.5, err=None, subdir="sorted", abinit=True):
+    """Filter out codes with certain score and only present these codees in the subdir with name `sorted` """
+    S = EasyDict(torch.load(join(outdir, "diversity_dz_score.pt")))
+    imdist_good = S.imdist[S.score > thresh]
+    imdist_bad = S.imdist[S.score < thresh]
+    score_good = S.score[S.score > thresh]
+    score_bad = S.score[S.score < thresh]
+
+    print(f"imdist good {imdist_good.mean():.2f}+-{imdist_good.std():.2f}\t"
+          f"{imdist_bad.mean():.2f}+-{imdist_bad.std():.2f}")
+    print(f"score good {score_good.mean():.2f}+-{score_good.std():.2f}\t"
+          f"{score_bad.mean():.2f}+-{score_bad.std():.2f}")
+    rho, pval = pearsonr(S.score, S.imdist)
+    print(f"Corr between score and im dist to proto {rho:.3f} P={pval:.3f} (All samples)")
+
+    os.makedirs(join(outdir, subdir), exist_ok=True)
+    sortidx = torch.argsort(- S.score)
+    score_sort = S.score[sortidx]
+    msk = score_sort > thresh
+    if err is not None:
+        msk = torch.abs(score_sort - thresh) < err
+    score_sort = score_sort[msk]
+    imdist_sort = S.imdist[sortidx][msk]
+    dz_final_sort = S.dz_final[sortidx, :][msk, :]
+    zs = dz_final_sort if abinit else dz_final_sort + S.z_base.cpu()
+    if len(zs) == 0:
+        print("no valid code! under the error tolerance. ")
+        return S
+    imgs = G.visualize_batch(zs)
+    save_imgrid(imgs, join(outdir, subdir, "proto_divers.png"))
+    save_imgrid(imgs * S.rfmaptsr.cpu(), join(outdir, subdir, "proto_divers_wRF.png"))
+    save_imgrid_by_row(imgs * S.rfmaptsr.cpu(), join(outdir, subdir, "proto_divers_wRF.png"), n_row=5)
+    S_new = S
+    S_new.score = score_sort
+    S_new.imdist = imdist_sort
+    S_new.dz_final = dz_final_sort
+    S_new.dz_init = S.dz_init[sortidx, :][msk, :]
+    torch.save(S_new, join(outdir, subdir, "diversity_dz_score.pt"))
+    df = pd.DataFrame({"score": S_new.score, "imdist2proto": S_new.imdist})
+    df.to_csv(join(outdir, subdir, "score_dist_summary.csv"))
+    if len(S_new.score) > 1 and len(S_new.imdist) > 1:
+        rho, pval = pearsonr(S_new.score, S_new.imdist)
+        print(f"Corr between score and im dist to proto {rho:.3f} P={pval:.3f} (After filter)")
+    else:
+        print("not enough entry to compute correlation")
+    # torch.save(dict(score=score_sort, imdist=imdist_sort, dz_final=dz_final_sort,
+    #                 dz_init=S.dz_init[sortidx, :][msk, :], z_base=S.z_base,
+    #                 score_base=S.score_base, rfmaptsr=S.rfmaptsr, opts=S.opts),
+    #            join(outdir, "sorted", "diversity_dz_score.pt"))
+    return S_new
+
 def torch_cosine_mat(X, Y=None):
     if Y is None:
         Y = X

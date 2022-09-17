@@ -24,7 +24,7 @@ from core.utils.plot_utils import show_imgrid, save_imgrid, save_imgrid_by_row
 from core.utils.layer_hook_utils import featureFetcher, get_module_names, register_hook_by_module_names, layername_dict
 from core.utils.grad_RF_estim import grad_RF_estimate, gradmap2RF_square, fit_2dgauss, show_gradmap
 from core.proto_analysis_lib import sweep_folder, visualize_proto_by_level, visualize_score_imdist, \
-        calc_proto_diversity_per_bin, visualize_diversity_by_bin
+        calc_proto_diversity_per_bin, visualize_diversity_by_bin, filter_visualize_codes
 from core.latent_explore_lib import latent_explore_batch, latent_diversity_explore, \
     latent_diversity_explore_wRF_fixval, search_peak_evol, search_peak_gradient, calc_rfmap
 
@@ -37,52 +37,6 @@ def pick_goodimages(S, rfmaptsr, thresh=2.5):
 
     show_imgrid(G.visualize_batch(S.dz_final[S.score > thresh, :].cuda()).cpu()*rfmaptsr.cpu())
 
-
-def filter_visualize_codes(outdir, thresh=2.5, err=None, subdir="sorted", abinit=True):
-    """Filter out codes with certain score and only present these codees in the subdir with name `sorted` """
-    S = EasyDict(torch.load(join(outdir, "diversity_dz_score.pt")))
-    imdist_good = S.imdist[S.score > thresh]
-    imdist_bad = S.imdist[S.score < thresh]
-    score_good = S.score[S.score > thresh]
-    score_bad = S.score[S.score < thresh]
-
-    print(f"imdist good {imdist_good.mean():.2f}+-{imdist_good.std():.2f}\t"
-          f"{imdist_bad.mean():.2f}+-{imdist_bad.std():.2f}")
-    print(f"score good {score_good.mean():.2f}+-{score_good.std():.2f}\t"
-          f"{score_bad.mean():.2f}+-{score_bad.std():.2f}")
-    rho, pval = pearsonr(S.score, S.imdist)
-    print(f"Corr between score and im dist to proto {rho:.3f} P={pval:.3f} (All samples)")
-
-    sortidx = torch.argsort(- S.score)
-    score_sort = S.score[sortidx]
-    msk = score_sort > thresh
-    if err is not None:
-        msk = torch.abs(score_sort - thresh) < err
-    score_sort = score_sort[msk]
-    imdist_sort = S.imdist[sortidx][msk]
-    dz_final_sort = S.dz_final[sortidx, :][msk, :]
-    zs = dz_final_sort if abinit else dz_final_sort + S.z_base.cpu()
-
-    imgs = G.visualize_batch(zs)
-    os.makedirs(join(outdir, subdir), exist_ok=True)
-    save_imgrid(imgs, join(outdir, subdir, "proto_divers.png"))
-    save_imgrid(imgs * S.rfmaptsr.cpu(), join(outdir, subdir, "proto_divers_wRF.png"))
-    save_imgrid_by_row(imgs * S.rfmaptsr.cpu(), join(outdir, subdir, "proto_divers_wRF.png"), n_row=5)
-    S_new = S
-    S_new.score = score_sort
-    S_new.imdist = imdist_sort
-    S_new.dz_final = dz_final_sort
-    S_new.dz_init = S.dz_init[sortidx, :][msk, :]
-    torch.save(S_new, join(outdir, subdir, "diversity_dz_score.pt"))
-    df = pd.DataFrame({"score": S_new.score, "imdist2proto": S_new.imdist})
-    df.to_csv(join(outdir, subdir, "score_dist_summary.csv"))
-    rho, pval = pearsonr(S_new.score, S_new.imdist)
-    print(f"Corr between score and im dist to proto {rho:.3f} P={pval:.3f} (After filter)")
-    # torch.save(dict(score=score_sort, imdist=imdist_sort, dz_final=dz_final_sort,
-    #                 dz_init=S.dz_init[sortidx, :][msk, :], z_base=S.z_base,
-    #                 score_base=S.score_base, rfmaptsr=S.rfmaptsr, opts=S.opts),
-    #            join(outdir, "sorted", "diversity_dz_score.pt"))
-    return S_new
 
 #%% New experiments
 Dist = LPIPS(net="squeeze", ).cuda()

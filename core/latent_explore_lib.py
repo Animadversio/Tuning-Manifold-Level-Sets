@@ -139,6 +139,8 @@ def latent_diversity_explore_wRF_fixval(G, Dist, scorer, z_base, resp_base, img_
         # compute distance of images under mask
         if imgdist_obj is "none" or imgdist_obj is None:
             dist_loss = 0.0
+            with torch.no_grad():
+                img_dists = Dist(img_base * rfmaptsr, curimgs * rfmaptsr)[:, 0, 0, 0]
         else:
             img_dists = Dist(img_base * rfmaptsr, curimgs * rfmaptsr)[:, 0, 0, 0]
             if imgdist_obj is "max":
