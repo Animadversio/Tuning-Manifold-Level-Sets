@@ -7,3 +7,7 @@ cd PerceptualSimilarity/
 git checkout distmat_dev
 pip install -e .
 ```
+
+```
+conda install scikit-image
+```

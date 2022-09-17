@@ -22,7 +22,7 @@ if platform == "linux": # cluster
     # torchhome = "/scratch/binxu/torch/checkpoints"  # CHPC
     hostname = socket.gethostname()
     if hostname == "odin":
-        torchhome = torch.hub.get_dir()
+        torchhome = join(torch.hub.get_dir(), "checkpoints")
     elif "ris.wustl.edu" in hostname:
         scratchdir = os.environ["SCRATCH1"]
         torchhome = join(scratchdir, "torch/checkpoints")  # RIS
