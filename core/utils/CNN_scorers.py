@@ -10,7 +10,7 @@ import torch
 from torchvision import models
 from torchvision import transforms
 import torch.nn.functional as F
-from core.layer_hook_utils import layername_dict, register_hook_by_module_names
+from core.utils.layer_hook_utils import layername_dict, register_hook_by_module_names
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42

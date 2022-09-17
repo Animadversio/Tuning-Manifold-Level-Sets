@@ -5,7 +5,7 @@ from numpy import sqrt, zeros, floor, log, log2, eye, exp, linspace, logspace, l
 from numpy.linalg import norm
 from numpy.random import randn
 
-from core.geometry_utils import ExpMap, renormalize, ang_dist, SLERP
+from core.utils.geometry_utils import ExpMap, renormalize, ang_dist, SLERP
 
 
 class CholeskyCMAES:
