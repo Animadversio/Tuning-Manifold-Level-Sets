@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from easydict import EasyDict
 from lpips import LPIPS
-from GAN_utils import upconvGAN
-from torch_utils import show_imgrid, save_imgrid, save_imgrid_by_row
 from scipy.stats import pearsonr, spearmanr
+# from core.utils.GAN_utils import upconvGAN
+from core.utils.plot_utils import show_imgrid, save_imgrid, save_imgrid_by_row
 #%% Rename folder structure.
 def _rename_folder_structure(root):
     # root = r"E:\insilico_exps\proto_diversity\resnet50_linf8\layer3-Btn5-5_rf"

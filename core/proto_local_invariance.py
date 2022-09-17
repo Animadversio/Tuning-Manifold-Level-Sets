@@ -14,21 +14,23 @@ import pandas as pd
 from tqdm import tqdm
 from os.path import join
 import matplotlib.pylab as plt
-from GAN_utils import upconvGAN
-from insilico_Exp_torch import TorchScorer
-from ZO_HessAware_Optimizers import CholeskyCMAES
-from torch_utils import show_imgrid, save_imgrid, save_imgrid_by_row
-from featvis_lib import load_featnet
 from easydict import EasyDict
-from layer_hook_utils import featureFetcher, get_module_names, register_hook_by_module_names, layername_dict
 from collections import defaultdict
 from scipy.stats import pearsonr, spearmanr
-from proto_invariance_lib import sweep_folder, visualize_proto_by_level, visualize_score_imdist, \
+from core.utils.GAN_utils import upconvGAN
+from core.utils.CNN_scorers import TorchScorer
+from core.utils.Optimizers import CholeskyCMAES
+from core.utils.plot_utils import show_imgrid, save_imgrid, save_imgrid_by_row
+from core.utils.layer_hook_utils import featureFetcher, get_module_names, register_hook_by_module_names, layername_dict
+from core.utils.grad_RF_estim import grad_RF_estimate, gradmap2RF_square, fit_2dgauss, show_gradmap
+from core.proto_invariance_lib import sweep_folder, visualize_proto_by_level, visualize_score_imdist, \
         calc_proto_diversity_per_bin, visualize_diversity_by_bin
-from sklearn.decomposition import IncrementalPCA
-from sklearn.random_projection import SparseRandomProjection
-from neural_regress.regress_lib import compare_activation_prediction, sweep_regressors, \
-    resizer, normalizer, denormalizer, PoissonRegressor, RidgeCV, Ridge, KernelRidge
+
+# from featvis_lib import load_featnet
+# from sklearn.decomposition import IncrementalPCA
+# from sklearn.random_projection import SparseRandomProjection
+# from neural_regress.regress_lib import compare_activation_prediction, sweep_regressors, \
+#     resizer, normalizer, denormalizer, PoissonRegressor, RidgeCV, Ridge, KernelRidge
 #%
 def latent_diversity_explore(G, Dist, scorer, z_base, dzs=None, alpha=10.0, dz_sigma=3.0,
                       batch_size=5, steps=150, lr=0.1, midpoint=True):
@@ -221,7 +223,6 @@ def search_peak_gradient(G, scorer, z_base, resp_base, nstep=200):
     return z_base, img_base, resp_base
 
 #%%
-from grad_RF_estim import grad_RF_estimate, gradmap2RF_square, fit_2dgauss, show_gradmap
 # cent_pos = (6, 6)
 def calc_rfmap(scorer, rf_dir, label=None, use_fit=True, device="cuda",):
     if label is None:
