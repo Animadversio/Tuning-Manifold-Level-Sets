@@ -210,9 +210,6 @@ class upconvGAN(nn.Module):
                 imgs = self.visualize(torch.from_numpy(codes_all_arr[csr:csr_end, :]).float().cuda(), scale).cpu()
                 img_all = imgs if img_all is None else torch.cat((img_all, imgs), dim=0)
                 csr = csr_end
-                if verbose:
-                    clear_output(wait=True)
-                    progress_bar(csr_end, coden, "ploting row of page: %d of %d" % (csr_end, coden))
         return img_all
 
 
