@@ -1,3 +1,6 @@
+"""Code for analyze and visualize experiment data.
+
+"""
 import pandas as pd
 import torch
 import os
@@ -11,18 +14,21 @@ from lpips import LPIPS
 from scipy.stats import pearsonr, spearmanr
 # from core.utils.GAN_utils import upconvGAN
 from core.utils.plot_utils import show_imgrid, save_imgrid, save_imgrid_by_row
-#%% Rename folder structure.
-def _rename_folder_structure(root):
-    # root = r"E:\insilico_exps\proto_diversity\resnet50_linf8\layer3-Btn5-5_rf"
-    dirnms = os.listdir(root)
-    for dirnm in dirnms:
-        if os.path.isdir(join(root, dirnm)) and dirnm.startswith("layer3-Btn5-5_rf_"):
-            os.rename(join(root, dirnm), join(root, dirnm.replace("layer3-Btn5-5_rf_", "")))
-#%% Post hoc sorting of the results.
+
+
 def sweep_folder(root, dirnm_pattern=".*_max_abinit$", sum_sfx="summary"):
+    """ Post hoc sorting of the results.
+        1. Create summary folder with `sum_sfx` suffix.
+        2. Sweep through subfolders with `dirnm_pattern` regex
+        3. Collect data from "diversity_dz_score.pt" into `sumdict`
+            * 'imdist', 'score', 'z' are stored as a list. 
+            * "z_base", "score_base", "rfmaptsr" are stored as a single entry. 
+            * Format the list as a batch first torch tensor. 
+        4. Save `sumdict` in `sumdir`.
+    """
     sumdir = join(root, sum_sfx)
     os.makedirs(sumdir, exist_ok=True)
-    repatt = re.compile(dirnm_pattern)  # (".*_max$")
+    repatt = re.compile(dirnm_pattern)  # (".*_max$") (".*_min$")
     dirnms = os.listdir(root)
     sumdict = EasyDict({'imdist': [], 'score': [], 'z': []})
     for dirnm in dirnms:
@@ -36,6 +42,7 @@ def sweep_folder(root, dirnm_pattern=".*_max_abinit$", sum_sfx="summary"):
         for k in ["z_base", "score_base", "rfmaptsr"]:
             sumdict[k] = saveD[k].cpu()
 
+    # format list into torch tensor. 
     for k in sumdict:
         if isinstance(sumdict[k], list):
             sumdict[k] = torch.cat(sumdict[k], dim=0)
@@ -46,6 +53,10 @@ def sweep_folder(root, dirnm_pattern=".*_max_abinit$", sum_sfx="summary"):
 
 def visualize_proto_by_level(G, sumdict, sumdir, bin_width=0.10, relwidth=0.25,
                              sampimgN=6, show=False):
+    """ Summarize the images per level in column and concat them in a matrix
+    columns are activation levels, rows are different samples from a level.
+    Images are showed under RF masks.
+    """
     rfmaptsr = sumdict.rfmaptsr.cuda()
     proto_all_tsr = []
     for bin_c in np.arange(0.0, 1.10, 0.10):
@@ -85,7 +96,7 @@ def visualize_score_imdist(sumdict, sumdir, ):
                  "Spearman (excld 0) r=%.3f p=%.1e" % (rval, pval, rval_pos, pval_pos))
     plt.savefig(join(sumdir, "imdist_vs_score.png"))
     plt.show()
-    #%
+    # Score histogram
     fig, ax = plt.subplots(1, 1, figsize=(6, 5))
     plt.hist(sumdict.score.numpy(), bins=40)
     plt.vlines(sumdict.score_base.item(), *plt.ylim(), color="red", linestyles="dashed")
@@ -95,14 +106,19 @@ def visualize_score_imdist(sumdict, sumdir, ):
     plt.savefig(join(sumdir, "unit_score_dist_max_abinit.png"))
     plt.show()
 
-#% Bin the results and summarize the prototypes within the bin.
-def calc_proto_diversity_per_bin(G, Dist, sumdict, sumdir, bin_width=0.10, distsampleN=40):
+
+def calc_proto_diversity_per_bin(G, Dist, sumdict, sumdir, bin_width=0.10,
+                                 distsampleN=40, lpips_batch=64):
+    """ Bin the results and summarize the prototypes within the bin.
+    Compute the LPIPS and pixel level image diversity of images in the bin
+    """
     rfmaptsr = sumdict.rfmaptsr.cuda()
     pixdist_dict = {}
     lpipsdist_dict = {}
     lpipsdistmat_dict = {}
     df = pd.DataFrame()
     for bin_c in np.arange(0.0, 1.10, 0.10):
+        # left side and right side of bin.
         bin_r = bin_c + 0.4 * bin_width
         bin_l = bin_c - 0.4 * bin_width
         idx_mask = (sumdict.score >= bin_l * sumdict.score_base) * \
@@ -115,15 +131,15 @@ def calc_proto_diversity_per_bin(G, Dist, sumdict, sumdir, bin_width=0.10, dists
         print("%0.2f-%0.2f: %d imdist %.3f+-%.3f  score %.3f+-%.3f" % (bin_l, bin_r, idx_mask.sum(),
               imdist_bin.mean().item(), imdist_bin.std().item(),
               score_bin.mean().item(), score_bin.std().item()))
-        #%
-        if z_bin.shape[0] > 1: # cannot compute pairwise distance with one sample;
+
+        if z_bin.shape[0] > 1:  # cannot compute pairwise distance with one sample;
             imgtsrs = G.visualize_batch(z_bin[:distsampleN, :].cuda())
             imgtsrs_rf = imgtsrs * rfmaptsr.cpu()
             pixdist = torch.pdist(imgtsrs_rf.flatten(start_dim=1))
             print("pairwise pixel dist %.3f+-%.3f N=%d" % (pixdist.mean(), pixdist.std(), len(pixdist)))
             pixdist_dict[bin_c] = pixdist
+            # DONE: this is slow. Can we do it in batch?
             # calculate lpips distance matrix row by row.
-            # TODO: this is slow. Can we do it in batch?
             # distmat_bin = []
             # for i in range(imgtsrs.shape[0]):
             #     dist_in_bin = Dist(imgtsrs.cuda() * rfmaptsr, imgtsrs[i:i + 1].cuda() * rfmaptsr).cpu().squeeze()
@@ -131,7 +147,7 @@ def calc_proto_diversity_per_bin(G, Dist, sumdict, sumdir, bin_width=0.10, dists
             #
             # distmat_bin = torch.stack(distmat_bin, dim=0)
             # Batch processing version, much faster!
-            distmat_bin = Dist.forward_distmat(imgtsrs_rf.cuda(), None).cpu().squeeze()
+            distmat_bin = Dist.forward_distmat(imgtsrs_rf.cuda(), None, batch_size=lpips_batch).cpu().squeeze()
             mask = torch.triu(torch.ones(*distmat_bin.shape, dtype=torch.bool), diagonal=1, )
             pairwise_dist = distmat_bin[mask]
             print("pairwise dist %.3f+-%.3f N=%d" % (pairwise_dist.mean(), pairwise_dist.std(), len(pairwise_dist)))
@@ -151,6 +167,9 @@ def calc_proto_diversity_per_bin(G, Dist, sumdict, sumdir, bin_width=0.10, dists
 
 
 def visualize_diversity_by_bin(df, sumdir):
+    """ Plot the lpips and pixel distance diversity as a function of activation level.
+    df: Take in output from `calc_proto_diversity_per_bin`
+    """
     rval, pval = spearmanr(df.bin_c, df.lpipsdist)
     rval_pos, pval_pos = spearmanr(df.bin_c[df.bin_c > 0.0], df.lpipsdist[df.bin_c > 0.0])
     figh, ax = plt.subplots(1, 1, figsize=(6, 5))
@@ -183,3 +202,11 @@ def torch_cosine_mat(X, Y=None):
     return (X @ Y.T) / torch.norm(X, dim=1, keepdim=True) / torch.norm(Y, dim=1, keepdim=True).T
 
 
+
+#%% Rename folder structure.
+def _rename_folder_structure(root):
+    # root = r"E:\insilico_exps\proto_diversity\resnet50_linf8\layer3-Btn5-5_rf"
+    dirnms = os.listdir(root)
+    for dirnm in dirnms:
+        if os.path.isdir(join(root, dirnm)) and dirnm.startswith("layer3-Btn5-5_rf_"):
+            os.rename(join(root, dirnm), join(root, dirnm.replace("layer3-Btn5-5_rf_", "")))

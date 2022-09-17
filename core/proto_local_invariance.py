@@ -23,7 +23,7 @@ from core.utils.Optimizers import CholeskyCMAES
 from core.utils.plot_utils import show_imgrid, save_imgrid, save_imgrid_by_row
 from core.utils.layer_hook_utils import featureFetcher, get_module_names, register_hook_by_module_names, layername_dict
 from core.utils.grad_RF_estim import grad_RF_estimate, gradmap2RF_square, fit_2dgauss, show_gradmap
-from core.proto_invariance_lib import sweep_folder, visualize_proto_by_level, visualize_score_imdist, \
+from core.proto_analysis_lib import sweep_folder, visualize_proto_by_level, visualize_score_imdist, \
         calc_proto_diversity_per_bin, visualize_diversity_by_bin
 
 # from featvis_lib import load_featnet
@@ -109,7 +109,7 @@ def latent_diversity_explore_wRF_fixval(G, Dist, scorer, z_base, rfmaptsr, dzs=N
                                         imgdist_obj="max", imgdist_fixval=None, alpha_img=1.0,
                                         score_obj="max", score_fixval=None, alpha_score=1.0,
                                         batch_size=5, steps=150, lr=0.1, noise_std=0.3, midpoint=True):
-    """ Most recent version of latent diversity explore.
+    """ Latest version of latent diversity explore.
     Setting 1, fix the score at half maximum. Maximize image distance to prototype
         latent_diversity_explore_wRF_fixval(G, scorer, z_base, rfmaptsr,
                         imgdist_obj="max", score_obj="fix", score_fixval=score_base * 0.5, alpha_score=10.0)
@@ -130,7 +130,7 @@ def latent_diversity_explore_wRF_fixval(G, Dist, scorer, z_base, rfmaptsr, dzs=N
     :param midpoint: If True, the activation of midpoint is also computed.
     :return:
     """
-    Dist.spatial = False
+    Dist.spatial = False # scalar output from Dist
     if dzs is None:
         dzs = dz_sigma * torch.randn(batch_size, 4096).cuda()
     dzs_init = dzs.clone().cpu()
@@ -148,7 +148,7 @@ def latent_diversity_explore_wRF_fixval(G, Dist, scorer, z_base, rfmaptsr, dzs=N
             score_loss = torch.abs(resp_news - score_fixval)
         else:
             raise ValueError(f"Unknown score_obj {score_obj}")
-
+        # compute distance of images under mask
         img_dists = Dist(img_base * rfmaptsr, curimgs * rfmaptsr)[:, 0, 0, 0]
         if imgdist_obj is "max":
             dist_loss = - img_dists
@@ -169,6 +169,7 @@ def latent_diversity_explore_wRF_fixval(G, Dist, scorer, z_base, rfmaptsr, dzs=N
         loss.backward()
         optimizer.step()
         if failmask.any():
+            # add gaussian noise perturbation for the failed evolutions.
             dzs.data = dzs.data + noise_std * \
                 torch.randn(batch_size, 4096, device="cuda") * failmask.unsqueeze(1)
         print(
@@ -179,6 +180,7 @@ def latent_diversity_explore_wRF_fixval(G, Dist, scorer, z_base, rfmaptsr, dzs=N
 
 
 def search_peak_evol(G, scorer, nstep=100):
+    """Initial evolution CMA to find the peak"""
     resp_all = []
     z_all = []
     optimizer = CholeskyCMAES(4096, population_size=None, init_sigma=3.0)
@@ -202,6 +204,7 @@ def search_peak_evol(G, scorer, nstep=100):
 
 
 def search_peak_gradient(G, scorer, z_base, resp_base, nstep=200):
+    """Initial gradient based evolution Adam to find the peak"""
     dz = 0.1 * torch.randn(1, 4096).cuda()
     dz.requires_grad_()
     optimizer = Adam([dz], lr=0.1)
@@ -246,8 +249,8 @@ def latent_explore_batch(z_base, rfmaptsr, opts, outdir, repn=20, ):
     score_col = []
     imdist_col = []
     for i in range(repn):
-        dzs_init, dzs, img_dists, curimgs, scores = latent_diversity_explore_wRF_fixval(G, Dist, scorer,
-                            z_base, rfmaptsr, **opts)
+        dzs_init, dzs, img_dists, curimgs, scores = latent_diversity_explore_wRF_fixval(G,
+                            Dist, scorer, z_base, rfmaptsr, **opts)
         save_imgrid(curimgs, join(outdir, f"proto_divers_{i}.png"))
         save_imgrid(curimgs * rfmaptsr.cpu(), join(outdir, f"proto_divers_wRF_{i}.png"))
         dz_init_col.append(dzs_init)
@@ -353,7 +356,7 @@ unitlist = [#("resnet50_linf8", ".layer4.Bottleneck2", 10, 3, 3),
             # ("resnet50_linf8", ".layer3.Bottleneck5", 10, 7, 7),
             # ("resnet50_linf8", ".layer4.Bottleneck0", 10, 3, 3),
             # ("resnet50_linf8", ".layer2.Bottleneck1", 5, 13, 13),
-            ("resnet50_linf8", ".layer2.Bottleneck1", 10, 13, 13),
+            # ("resnet50_linf8", ".layer2.Bottleneck1", 10, 13, 13), # some problem in min
             ("resnet50_linf8", ".layer2.Bottleneck3", 10, 13, 13),
             ("resnet50_linf8", ".layer3.Bottleneck0", 10, 7, 7),
             ("resnet50_linf8", ".layer3.Bottleneck2", 10, 7, 7),
@@ -373,8 +376,10 @@ for unit_tup in unitlist:
     outroot = join(r"E:\insilico_exps\proto_diversity", netname)
     outrf_dir = join(outroot, unitlabel+"_rf")
     os.makedirs(outrf_dir, exist_ok=True)
+    # Compute RF map for the unit.
     rfmaptsr, rfmapnp, fitdict = calc_rfmap(scorer, outrf_dir, label=unitlabel, use_fit=True, )
     #%%
+    # Perform evolution with CMA and gradient. Save the code and image
     z_evol, img_evol, resp_evol, resp_all, z_all = search_peak_evol(G, scorer, nstep=100)
     z_base, img_base, resp_base = search_peak_gradient(G, scorer, z_evol, resp_evol, nstep=100)
     resp_base = torch.tensor(resp_base).float().cuda()
@@ -393,7 +398,7 @@ for unit_tup in unitlist:
         S_sel = filter_visualize_codes(trial_dir, thresh=resp_base.item() * ratio, abinit=False,
                                        err=resp_base.item() * ratio * 0.2)
 
-    for ratio in np.arange(0.1, 1.1, 0.1):
+    for ratio in np.arange(0.10, 1.1, 0.1):
         trial_dir = join(outrf_dir, "fix%s_max_abinit"%(("%.2f"%ratio).replace(".", "")))
         opts = dict(dz_sigma=3, imgdist_obj="max", alpha_img=5.0,
                     score_obj="fix", score_fixval=resp_base * ratio, alpha_score=1.0, noise_std=0.3,)
@@ -407,7 +412,7 @@ for unit_tup in unitlist:
                     score_obj="fix", score_fixval=resp_base * ratio, alpha_score=1.0, noise_std=0.3,)
         S = latent_explore_batch(z_base, rfmaptsr, opts, trial_dir, repn=repn)
         S_sel = filter_visualize_codes(trial_dir, thresh=resp_base.item() * ratio, abinit=False,
-                                       err=resp_base.item() * ratio * 0.2)
+                                       err=resp_base.item() * 0.1) #ratio * 0.2
 
     for suffix in ["min", "max", "max_abinit"]:
         sumdict, sumdir = sweep_folder(outrf_dir, dirnm_pattern=f"fix.*_{suffix}$",
@@ -417,13 +422,6 @@ for unit_tup in unitlist:
         df, pixdist_dict, lpipsdist_dict, lpipsdistmat_dict = calc_proto_diversity_per_bin(G, Dist, sumdict, sumdir,
                                                                    bin_width=0.10, distsampleN=40)
         visualize_diversity_by_bin(df, sumdir)
-
-
-#%%
-
-#%%
-
-#%%
 
 
 #%% Development zone
