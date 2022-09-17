@@ -15,8 +15,13 @@ from os.path import join
 from sys import platform
 load_urls = False
 if platform == "linux":  # CHPC cluster
-    homedir = os.path.expanduser('~')
-    netsdir = os.path.join(homedir, 'Generate_DB/nets')
+    import socket
+    hostname = socket.gethostname()
+    if hostname == "odin":
+        torchhome = torch.hub.get_dir()
+    elif "ris.wustl.edu" in hostname:
+        homedir = os.path.expanduser('~')
+        netsdir = os.path.join(homedir, 'Generate_DB/nets')
     load_urls = True
     # ckpt_path = {"vgg16": "/scratch/binxu/torch/vgg16-397923af.pth"}
 else:
@@ -238,7 +243,8 @@ class multiZupconvGAN(nn.Module):
 def loadBigGAN(version="biggan-deep-256"):
     from pytorch_pretrained_biggan import BigGAN, truncated_noise_sample, BigGANConfig
     if platform == "linux":
-        cache_path = "/scratch/binxu/torch/"
+        cache_path = torch.hub.get_dir() # see if this works
+        # cache_path = "/scratch/binxu/torch/"
         cfg = BigGANConfig.from_json_file(join(cache_path, "%s-config.json" % version))
         BGAN = BigGAN(cfg)
         BGAN.load_state_dict(torch.load(join(cache_path, "%s-pytorch_model.bin" % version)))

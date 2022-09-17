@@ -13,13 +13,17 @@ import torch.nn.functional as F
 from core.utils.layer_hook_utils import layername_dict, register_hook_by_module_names
 import matplotlib.pyplot as plt
 import matplotlib
+import socket
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
 
 if platform == "linux": # cluster
     # torchhome = "/scratch/binxu/torch/checkpoints"  # CHPC
-    if "ris.wustl.edu" in os.environ['HOSTNAME']:
+    hostname = socket.gethostname()
+    if hostname == "odin":
+        torchhome = torch.hub.get_dir()
+    elif "ris.wustl.edu" in hostname:
         scratchdir = os.environ["SCRATCH1"]
         torchhome = join(scratchdir, "torch/checkpoints")  # RIS
     else:
