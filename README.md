@@ -8,6 +8,10 @@ git checkout distmat_dev
 pip install -e .
 ```
 
+```bash
+pip install git+https://github.com/Animadversio/PerceptualSimilarity.git@9e7d938b31be8daa76f9c349a0b872b4836f2edd
 ```
+
+```bash
 conda install scikit-image
 ```
