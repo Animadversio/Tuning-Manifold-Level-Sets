@@ -1,15 +1,15 @@
 #!/bin/bash
-#BSUB -n 1
+#BSUB -n 2
 #BSUB -q general
 #BSUB -G compute-holy
-#BSUB -J 'local_proto[1-4]'
+#BSUB -J 'levelset_LS[1-6]'
 #BSUB -gpu "num=1:gmodel=TeslaV100_SXM2_32GB:mode=exclusive_process"
 #BSUB -R 'gpuhost'
-#BSUB -R 'select[mem>32G]'
-#BSUB -R 'rusage[mem=32GB]'
-#BSUB -M 32G
+#BSUB -R 'select[mem>16G]'
+#BSUB -R 'rusage[mem=16GB]'
+#BSUB -M 16G
 #BSUB -u binxu.wang@wustl.edu
-#BSUB -o  /scratch1/fs1/crponce/CMA_covmat.%J.%I
+#BSUB -o  /scratch1/fs1/holy/levelset_LS.%J.%I
 #BSUB -a 'docker(pytorchlightning/pytorch_lightning:base-cuda-py3.9-torch1.9)'
 
 echo "$LSB_JOBINDEX"
