@@ -10,12 +10,22 @@ import shutil
 from glob import glob
 from scipy.io import loadmat
 import numpy as np
-
+from easydict import EasyDict as edict
 mat_path = r"E:\OneDrive - Washington University in St. Louis\Mat_Statistics"
 Pasupath = r"N:\Stimuli\2019-Manifold\pasupathy-wg-f-4-ori"
 Gaborpath = r"N:\Stimuli\2019-Manifold\gabor"
 
 #%%
+def chan2area(chan):
+    if chan <= 32 and chan >= 1:
+        return "IT"
+    elif chan >= 49 and chan <=64:
+        return "V4"
+    elif chan > 32 and chan < 49:
+        return "V1"
+    else:
+        raise ValueError("chan out of range.")
+
 def get_Evol_Manif_stats(Animal, mat_path=mat_path):
     MStats = loadmat(join(mat_path, Animal + "_Manif_stats.mat"), struct_as_record=False,
                      squeeze_me=True)['Stats']
@@ -23,6 +33,26 @@ def get_Evol_Manif_stats(Animal, mat_path=mat_path):
                      squeeze_me=True, chars_as_strings=True)['EStats']
     return EStats, MStats
 
+#%%
+def extract_meta_data(Animal, Expi, EStats=None, MStats=None, ):
+    """Extract metadata from EStats and MStats for Expi."""
+    if EStats is None or MStats is None:
+        EStats, MStats = get_Evol_Manif_stats(Animal)
+    meta = edict()
+    meta.Animal = Animal
+    meta.Expi = Expi
+    meta.prefchan = EStats[Expi - 1].evol.pref_chan
+    meta.prefunit = EStats[Expi - 1].evol.unit_in_pref_chan
+    meta.area = chan2area(meta.prefchan)
+    meta.SUidx = EStats[Expi - 1].meta.SUidx
+    meta.imgpos = EStats[Expi - 1].evol.imgpos
+    meta.imgsize = EStats[Expi - 1].evol.imgsize
+    meta.didGabor = MStats[Expi - 1].ref.didGabor
+    meta.didPasu = MStats[Expi - 1].ref.didPasu
+    expstr = f"{Animal} Exp{Expi:02d} {meta.area} Channel {meta.prefchan:02d}-{meta.prefunit:d} ({meta.SUidx}/5)\n" \
+             f"imgpos: [{meta.imgpos[0]:.1f},{meta.imgpos[1]:.1f}] imgsize: {meta.imgsize:.1f}"
+    meta.expstr = expstr
+    return meta, expstr
 # %% Load full path to images and psths
 def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50, 200)], stimdrive="N"):
     """
