@@ -247,11 +247,11 @@ def color_frame(img, color, pad=10):
     return outimg
 
 
-def color_framed_montages(image_list, image_shape, montage_shape, scores, cmap=plt.cm.summer, pad=24):
+def color_framed_montages(image_list, image_shape, montage_shape, scores, cmap=plt.cm.summer, pad=24, vmin=None, vmax=None):
     # get color for each cell
     if (not scores is None) and (not cmap is None):
-        lb = np.min(scores)
-        ub = max(np.max(scores), lb + 0.001)
+        lb = np.min(scores) if vmin is None else vmin
+        ub = max(np.max(scores), lb + 0.001) if vmax is None else vmax
         colorlist = [cmap((score - lb) / (ub - lb)) for score in scores]
         # pad color to the image
         frame_image_list = [color_frame(img, color, pad=pad) for img, color in zip(image_list, colorlist)]
