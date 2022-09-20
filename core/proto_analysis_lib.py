@@ -45,7 +45,10 @@ def sweep_folder(root, dirnm_pattern=".*_max_abinit$", sum_sfx="summary"):
     # format list into torch tensor. 
     for k in sumdict:
         if isinstance(sumdict[k], list):
-            sumdict[k] = torch.cat(sumdict[k], dim=0)
+            if len(sumdict[k]) > 0:
+                sumdict[k] = torch.cat(sumdict[k], dim=0)
+            else:
+                sumdict[k] = torch.empty(0)
 
     torch.save(sumdict, join(sumdir, "diversity_z_summary.pt"))
     return sumdict, sumdir
