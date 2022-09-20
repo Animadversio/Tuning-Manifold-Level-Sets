@@ -12,68 +12,13 @@ from skimage.measure import find_contours
 from core.utils.plot_utils import saveallforms
 from invivo_analysis.neural_data_lib import extract_meta_data
 from invivo_analysis.neural_data_lib import get_Evol_Manif_stats, load_score_mat, mat_path
-from invivo_analysis.level_set_lib import level_set_profile, plot_levelsets
+from invivo_analysis.level_set_lib import level_set_profile, plot_levelsets,\
+    analyze_levelsets_topology, visualize_levelsets_all, plot_levelsets_topology
 from invivo_analysis.Manif_interp_lib import sphere_interp_Manifold, \
     compute_all_meta, compute_all_interpolation, load_meta, load_data_interp
 
 savedir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp"
 #%%
-def analyze_levelsets_topology(data_interp, levels=None, nlevels=21, ):
-    rngmax = data_interp.max()
-    rngmin = data_interp.min()
-    if levels is None:
-        levels = np.linspace(data_interp.min(), data_interp.max(), nlevels)
-    df_col = []
-    lvlset_dict = {}
-    for lvl in levels:
-        lvlsets = find_contours(data_interp, lvl)
-        nbr, nloop, nline = level_set_profile(lvlsets)
-        df_col.append(edict(level=lvl, n_branch=nbr, n_loop=nloop, n_line=nline,
-                            level_maxfrac=lvl / rngmax, ))
-        lvlset_dict[lvl] = lvlsets
-    df = pd.DataFrame(df_col)
-    return df, lvlset_dict
-
-
-def visualize_levelsets_all(data_interp, levels=None, nlevels=21, print_info=True, ):
-    rngmax = data_interp.max()
-    rngmin = data_interp.min()
-    if levels is None:
-        levels = np.linspace(data_interp.min(), data_interp.max(), nlevels)
-
-    figh, axh = plt.subplots(1, 1, figsize=(8, 7))
-    plt.imshow(data_interp, cmap="inferno")  # origin="lower")
-    plt.xticks(range(0, 181, 45), range(-90, 91, 45))
-    plt.yticks(range(0, 181, 45), range(-90, 91, 45))
-    plt.colorbar()
-    for lvl in levels:
-        lvlsets = find_contours(data_interp, lvl)
-        nbr, nloop, nline = level_set_profile(lvlsets)
-        plot_levelsets(lvlsets, ax=axh)
-        if print_info:
-            print("level %.1f:\t%d branches, %d loops, %d lines" % (lvl, nbr, nloop, nline))
-
-    return figh, axh
-
-
-def plot_levelsets_topology(df, bslmean=None, explabel="", axh=None):
-    """Plot the topology of level sets as a function of activation level"""
-    from matplotlib.ticker import MaxNLocator
-    if axh is None:
-        figh, axh = plt.subplots(1, 1, figsize=(5, 4))
-    else:
-        figh = axh.figure
-    axh.plot(df.level, df.n_branch, "o-", label="n_branch", alpha=0.5, lw=2)
-    axh.plot(df.level, df.n_loop, "o-", label="n_loop", alpha=0.5, lw=2)
-    axh.plot(df.level, df.n_line, "o-", label="n_line", alpha=0.5, lw=2)
-    if bslmean is not None:
-        axh.axvline(bslmean, color="k", linestyle="--", label="baseline")
-    axh.set_xlabel("activation level (spk/s)")
-    axh.set_ylabel("number of levelsets")
-    axh.set_title("%s\nLevelset topology"%explabel)
-    axh.legend()
-    axh.yaxis.set_major_locator(MaxNLocator(integer=True))
-    return figh, axh
 
 #%%
 Animal, Expi = "Alfa", 3
@@ -85,7 +30,7 @@ figh.show()
 figh2, axh2 = plot_levelsets_topology(df, bslmean, explabel)
 figh2.show()
 #%%
-# Plot and Export topology related figures
+# Plot and Export topology related figures for individual experiments
 sumdir = join(savedir, "summary", "topology")
 lvldir = join(savedir, "levelsets")
 for Animal in ["Alfa", "Beto"]:

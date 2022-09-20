@@ -14,6 +14,7 @@ from easydict import EasyDict as edict
 mat_path = r"E:\OneDrive - Washington University in St. Louis\Mat_Statistics"
 Pasupath = r"N:\Stimuli\2019-Manifold\pasupathy-wg-f-4-ori"
 Gaborpath = r"N:\Stimuli\2019-Manifold\gabor"
+ExpNum = {"Alfa": 46, "Beto": 45}
 
 #%%
 def chan2area(chan):

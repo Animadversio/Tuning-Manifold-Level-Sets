@@ -54,6 +54,64 @@ def spherical_length(curve):
     pass
 
 
+def analyze_levelsets_topology(data_interp, levels=None, nlevels=21, ):
+    rngmax = data_interp.max()
+    rngmin = data_interp.min()
+    if levels is None:
+        levels = np.linspace(data_interp.min(), data_interp.max(), nlevels)
+    df_col = []
+    lvlset_dict = {}
+    for lvl in levels:
+        lvlsets = find_contours(data_interp, lvl)
+        nbr, nloop, nline = level_set_profile(lvlsets)
+        df_col.append(edict(level=lvl, n_branch=nbr, n_loop=nloop, n_line=nline,
+                            level_maxfrac=lvl / rngmax, ))
+        lvlset_dict[lvl] = lvlsets
+    df = pd.DataFrame(df_col)
+    return df, lvlset_dict
+
+
+def visualize_levelsets_all(data_interp, levels=None, nlevels=21, print_info=True, ):
+    rngmax = data_interp.max()
+    rngmin = data_interp.min()
+    if levels is None:
+        levels = np.linspace(data_interp.min(), data_interp.max(), nlevels)
+
+    figh, axh = plt.subplots(1, 1, figsize=(8, 7))
+    plt.imshow(data_interp, cmap="inferno")  # origin="lower")
+    plt.xticks(range(0, 181, 45), range(-90, 91, 45))
+    plt.yticks(range(0, 181, 45), range(-90, 91, 45))
+    plt.colorbar()
+    for lvl in levels:
+        lvlsets = find_contours(data_interp, lvl)
+        nbr, nloop, nline = level_set_profile(lvlsets)
+        plot_levelsets(lvlsets, ax=axh)
+        if print_info:
+            print("level %.1f:\t%d branches, %d loops, %d lines" % (lvl, nbr, nloop, nline))
+
+    return figh, axh
+
+
+def plot_levelsets_topology(df, bslmean=None, explabel="", axh=None):
+    """Plot the topology of level sets as a function of activation level"""
+    from matplotlib.ticker import MaxNLocator
+    if axh is None:
+        figh, axh = plt.subplots(1, 1, figsize=(5, 4))
+    else:
+        figh = axh.figure
+    axh.plot(df.level, df.n_branch, "o-", label="n_branch", alpha=0.5, lw=2)
+    axh.plot(df.level, df.n_loop, "o-", label="n_loop", alpha=0.5, lw=2)
+    axh.plot(df.level, df.n_line, "o-", label="n_line", alpha=0.5, lw=2)
+    if bslmean is not None:
+        axh.axvline(bslmean, color="k", linestyle="--", label="baseline")
+    axh.set_xlabel("activation level (spk/s)")
+    axh.set_ylabel("number of levelsets")
+    axh.set_title("%s\nLevelset topology"%explabel)
+    axh.legend()
+    axh.yaxis.set_major_locator(MaxNLocator(integer=True))
+    return figh, axh
+
+
 if __name__ == "__main__":
     #%%
     Animal = "Alfa"
