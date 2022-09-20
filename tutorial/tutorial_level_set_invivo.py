@@ -1,3 +1,5 @@
+"""An example of level set extraction and computation analysis on in vivo data."""
+
 from os.path import join
 import matplotlib.pyplot as plt
 import seaborn as sns

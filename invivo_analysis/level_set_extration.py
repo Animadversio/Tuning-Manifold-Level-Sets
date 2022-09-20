@@ -78,7 +78,7 @@ get_lowest_single_level(df, )
 ExpNum = {"Alfa": 46, "Beto": 45}
 syn_col = []
 for Animal in ["Alfa", "Beto"]:
-    for Expi in range(1, ExpNum[Animal]):
+    for Expi in range(1, ExpNum[Animal]+1):
         meta = load_meta(Animal, Expi, savedir=savedir)
         data_interp, lut, actmap, bslmean = load_data_interp(Animal, Expi, savedir=savedir)
         df, lvlset_dict = analyze_levelsets_topology(data_interp, nlevels=21)
@@ -110,7 +110,7 @@ df_summary.T
 #%% Collect feature set of topological signatures
 topofeatmat = []
 for Animal in ["Alfa", "Beto"]:
-    for Expi in range(1, ExpNum[Animal]):
+    for Expi in range(1, ExpNum[Animal]+1):
         meta = load_meta(Animal, Expi, savedir=savedir)
         data_interp, lut, actmap, bslmean = load_data_interp(Animal, Expi, savedir=savedir)
         df, lvlset_dict = analyze_levelsets_topology(data_interp, nlevels=21)
