@@ -8,159 +8,13 @@ import numpy as np
 import pandas as pd
 from easydict import EasyDict as edict
 from skimage.measure import find_contours
-from scipy.interpolate import SmoothSphereBivariateSpline, RectSphereBivariateSpline
-from invivo_analysis.neural_data_lib import load_score_mat, get_Evol_Manif_stats, mat_path
-#%%
-Animal = "Alfa"
-EStats, MStats = get_Evol_Manif_stats(Animal)
-#%%
-scorecol_M, imgfullpath_vect_M = load_score_mat(EStats, MStats, 20, "Manif_avg", wdws=[(50, 200)], stimdrive="S")
-scorecol_M_sgtr, _ = load_score_mat(EStats, MStats, 20, "Manif_sgtr", wdws=[(50, 200)], stimdrive="S")
-bslcol_M_sgtr, _ = load_score_mat(EStats, MStats, 20, "Manif_sgtr", wdws=[(0, 40)], stimdrive="S")
-#%%
-actmap = scorecol_M.reshape(11, 11)
-imgfp_mat = np.array(imgfullpath_vect_M).reshape((11, 11))
-bslvec = np.concatenate(bslcol_M_sgtr)
-bslmean = bslvec.mean()
-bslstd = bslvec.std()
-# 1st index is PC2 degree, 2nd index is PC3 degree
-# 1st index is Theta, 2nd index is Phi
-actmap_pole = actmap.copy()
-actmap_poleval0 = actmap[:, 0].mean()
-actmap_polevalpi = actmap[:, -1].mean()
-actmap_pole[:, 0] = actmap[:, 0].mean()
-actmap_pole[:, -1] = actmap[:, -1].mean()
-#%% Estimate variability from the single trial response.
-# mean std and sem.
-stdmean = np.mean([np.std(trrsp) for trrsp in scorecol_M_sgtr])
-semmean = np.mean([np.std(trrsp)/np.sqrt(len(trrsp)) for trrsp in scorecol_M_sgtr])
-# square of st error of the mean
-semsqarray = np.array([np.var(trrsp)/len(trrsp) for trrsp in scorecol_M_sgtr]).reshape(11,11)
-# sum of square of sem across the interpolated points
-semsqsum = semsqarray[:, 1:-1].sum()  # np.sum([np.var(trrsp) for trrsp in scorecol_M_sgtr])
+from invivo_analysis.neural_data_lib import extract_meta_data
+from invivo_analysis.neural_data_lib import get_Evol_Manif_stats, load_score_mat, mat_path
+from invivo_analysis.level_set_lib import sphere_interp_Manifold, \
+    level_set_profile, plot_levelsets
 
-#%%
-# lats_vec = np.arange(0, 180.1, 18) / 180 * np.pi
-# lats_vec = np.linspace(0.1, 179.9, 11) / 180 * np.pi
-lats_vec = np.linspace(0, 180, 11)[1:-1] / 180 * np.pi
-lons_vec = np.arange(-90, 90.1, 18) / 180 * np.pi
-lut = RectSphereBivariateSpline(lats_vec, lons_vec, actmap[:, 1:-1].T,
-        pole_values=(actmap_poleval0, actmap_polevalpi),
-        pole_exact=False, s=semsqsum)
-
-#%%
-new_lats_vec = np.arange(0, 180.1, 1) / 180 * np.pi
-new_lons_vec = np.arange(-90, 90.1, 1) / 180 * np.pi
-new_lats, new_lons = np.meshgrid(new_lats_vec, new_lons_vec)
-data_interp = lut.ev(new_lats.ravel(),
-                     new_lons.ravel()).reshape(new_lats.shape)
-#%%
-plt.figure(figsize=(12, 5))
-plt.subplot(121)
-plt.imshow(data_interp, )  # origin="lower")
-plt.colorbar()
-plt.subplot(122)
-plt.imshow(actmap, )  # origin="lower")
-plt.colorbar()
-plt.tight_layout()
-plt.show()
-#%%
-#%%
-def sphere_interp_actmap(actmap, s, ):
-    """Simple version of activation map interpolation."""
-    actmap_poleval0 = actmap[:, 0].mean()
-    actmap_polevalpi = actmap[:, -1].mean()
-    lats_vec = np.linspace(0, 180, 11)[1:-1] / 180 * np.pi
-    lons_vec = np.arange(-90, 90.1, 18) / 180 * np.pi
-    lut = RectSphereBivariateSpline(lats_vec, lons_vec, actmap[:, 1:-1].T,
-                                    pole_values=(actmap_poleval0, actmap_polevalpi),
-                                    pole_exact=False, s=s)
-    new_lats_vec = np.arange(0, 180.1, 1) / 180 * np.pi
-    new_lons_vec = np.arange(-90, 90.1, 1) / 180 * np.pi
-    new_lats, new_lons = np.meshgrid(new_lats_vec, new_lons_vec)
-    data_interp = lut.ev(new_lats.ravel(),
-                         new_lons.ravel()).reshape(new_lats.shape)
-    return data_interp
-
-
-def sphere_interp_Manifold(Animal, Expi, EStats=None, MStats=None, ):
-    if EStats is None or MStats is None:
-        EStats, MStats = get_Evol_Manif_stats(Animal)
-    # Load the response data
-    scorecol_M, imgfullpath_vect_M = load_score_mat(EStats, MStats, Expi, "Manif_avg", wdws=[(50, 200)], stimdrive="S")
-    scorecol_M_sgtr, _ = load_score_mat(EStats, MStats, Expi, "Manif_sgtr", wdws=[(50, 200)], stimdrive="S")
-    bslcol_M_sgtr, _ = load_score_mat(EStats, MStats, Expi, "Manif_sgtr", wdws=[(0, 40)], stimdrive="S")
-    # 1st index is PC2 degree, 2nd index is PC3 degree
-    # 1st index is Theta, 2nd index is Phi
-    # format the data into map
-    actmap = scorecol_M.reshape(11, 11)
-    actcolmap = np.array(scorecol_M_sgtr, dtype=object).reshape(11, 11)
-    imgfp_mat = np.array(imgfullpath_vect_M).reshape((11, 11))
-    bslvec = np.concatenate(bslcol_M_sgtr)
-    bslmean = bslvec.mean()
-    bslstd = bslvec.std()
-    #% Estimate variability from the single trial response.
-    # square of st error of the mean
-    semsqarray = np.array([np.var(trrsp) / len(trrsp) for trrsp in scorecol_M_sgtr]).reshape(11, 11)
-    # sum of square of sem across the interpolated points
-    semsqsum = semsqarray[:, 1:-1].sum()  # np.sum([np.var(trrsp) for trrsp in scorecol_M_sgtr])
-    #%  Norse pole and south pole value
-    actmap_poleval0 = np.concatenate(actcolmap[:, 0]).mean()  # actmap[:, 0].mean()
-    actmap_polevalpi = np.concatenate(actcolmap[:, -1]).mean()  # actmap[:, -1].mean()
-    #%
-    lats_vec = np.linspace(0, 180, 11)[1:-1] / 180 * np.pi
-    lons_vec = np.arange(-90, 90.1, 18) / 180 * np.pi
-    lut = RectSphereBivariateSpline(lats_vec, lons_vec, actmap[:, 1:-1].T,
-                                    pole_values=(actmap_poleval0, actmap_polevalpi),
-                                    pole_exact=False, s=semsqsum)
-    new_lats_vec = np.arange(0, 180.1, 1) / 180 * np.pi
-    new_lons_vec = np.arange(-90, 90.1, 1) / 180 * np.pi
-    new_lats, new_lons = np.meshgrid(new_lats_vec, new_lons_vec)
-    data_interp = lut.ev(new_lats.ravel(),
-                         new_lons.ravel()).reshape(new_lats.shape)
-    data_interp = np.maximum(data_interp, 0.0)
-    return data_interp, lut, actmap, bslmean
-
-
-def is_close_loop(curve):
-    return np.allclose(curve[0, :], curve[-1, :])
-
-
-def level_set_profile(level_sets):
-    n_branch = len(level_sets)
-    n_loop = 0
-    n_line = 0
-    for i in range(n_branch):
-        if is_close_loop(level_sets[i]):
-            n_loop += 1
-        else:
-            n_line += 1
-    return n_branch, n_loop, n_line
-
-
-def plot_levelsets(level_sets, actmap=None, ax=None, **kwargs):
-    if ax is None:
-        ax = plt.gca()
-    if actmap is not None:
-        im = ax.imshow(actmap, **kwargs)
-        plt.colorbar(im, ax=ax)
-    for curve in level_sets:
-        ax.plot(curve[:, 1], curve[:, 0], "red")
-    return ax
-
-
-def curve_length(curve):
-    return np.sum(np.sqrt(np.sum(np.diff(curve, axis=0)**2, axis=1)))
-
-
-def spherical_length(curve):
-    pass
-
-
-
-
-#%% Mass calculation
 savedir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp"
+#%% Mass calculation
 for Animal in ["Alfa", "Beto"]:
     EStats, MStats = get_Evol_Manif_stats(Animal)
     for Expi in range(1, len(EStats)+1):
@@ -170,36 +24,21 @@ for Animal in ["Alfa", "Beto"]:
                  data_interp=data_interp, actmap=actmap, bslmean=bslmean)
         pkl.dump(lut, open(join(savedir, f"{Animal}_{Expi}_interp_lut.pkl"), "wb"))
 #%%
-Animal = "Alfa"
-EStats, MStats = get_Evol_Manif_stats(Animal)
-data_interp, lut, actmap, bslmean = sphere_interp_Manifold(Animal, 20, EStats, MStats)
-#%%
-rngmax = data_interp.max()
-rngmin = data_interp.min()
-#%%
-lvlsets = find_contours(actmap_pole, rngmax-5)
-print("%d branches, %d loops, %d lines" % level_set_profile(lvlsets))
-plot_levelsets(lvlsets, actmap_pole)
-plt.show()
-#%%
-lvlsets = find_contours(data_interp, rngmax-4.5)
-print("%d branches, %d loops, %d lines" % level_set_profile(lvlsets))
-plot_levelsets(lvlsets, data_interp)
-plt.show()
-#%%
-levels = np.linspace(rngmin, rngmax, 21)
-figh, axh = plt.subplots(1, 1, figsize=(8, 7))
-plt.imshow(data_interp, cmap="inferno")  # origin="lower")
-plt.colorbar()
-for lvl in levels:
-    lvlsets = find_contours(data_interp, lvl)
-    nbr, nloop, nline = level_set_profile(lvlsets)
-    plot_levelsets(lvlsets, ax=axh)
-    print("level %.1f:\t%d branches, %d loops, %d lines" % (lvl, nbr, nloop, nline))
+meta_col = edict()
+for Animal in ["Alfa", "Beto"]:
+    EStats, MStats = get_Evol_Manif_stats(Animal)
+    meta_col[Animal] = []
+    for Expi in range(1, len(EStats)+1):
+        meta, expstr = extract_meta_data(Animal, Expi, EStats, MStats)
+        print(expstr)
+        meta_col[Animal].append(meta)
 
-plt.show()
+pkl.dump(meta_col, open(join(savedir, "Both_metadata.pkl"), "wb"))
 #%%
-def load_data_interp(Animal, Expi, ):
+
+#%%
+def load_data_interp(Animal, Expi, savedir=savedir):
+    """ data loading routine from precomputed interpolated tuning map."""
     data = np.load(join(savedir, f"{Animal}_{Expi}_interp_map.npz"), allow_pickle=True)
     data_interp = data["data_interp"]
     actmap = data["actmap"]
@@ -207,6 +46,10 @@ def load_data_interp(Animal, Expi, ):
     lut = np.load(join(savedir, f"{Animal}_{Expi}_interp_lut.pkl"), allow_pickle=True)
     return data_interp, lut, actmap, bslmean
 
+
+def load_meta(Animal, Expi, savedir=savedir):
+    meta_col = pkl.load(open(join(savedir, "Both_metadata.pkl"), "rb"))
+    return meta_col[Animal][Expi-1]
 #%%
 def analyze_levelsets_topology(data_interp, levels=None, nlevels=21, ):
     rngmax = data_interp.max()
@@ -233,6 +76,8 @@ def visualize_levelsets_all(data_interp, levels=None, nlevels=21, print_info=Tru
 
     figh, axh = plt.subplots(1, 1, figsize=(8, 7))
     plt.imshow(data_interp, cmap="inferno")  # origin="lower")
+    plt.xticks(range(0, 181, 45), range(-90, 91, 45))
+    plt.yticks(range(0, 181, 45), range(-90, 91, 45))
     plt.colorbar()
     for lvl in levels:
         lvlsets = find_contours(data_interp, lvl)
@@ -245,6 +90,7 @@ def visualize_levelsets_all(data_interp, levels=None, nlevels=21, print_info=Tru
 
 
 def plot_levelsets_topology(df, bslmean=None, explabel="", axh=None):
+    """Plot the topology of level sets as a function of activation level"""
     from matplotlib.ticker import MaxNLocator
     if axh is None:
         figh, axh = plt.subplots(1, 1, figsize=(5, 4))
@@ -273,32 +119,114 @@ figh2, axh2 = plot_levelsets_topology(df, bslmean, explabel)
 figh2.show()
 #%%
 from core.utils.plot_utils import saveallforms
-# Export topology related figures 
+# Plot and Export topology related figures
 sumdir = join(savedir, "summary", "topology")
+lvldir = join(savedir, "levelsets")
 for Animal in ["Alfa", "Beto"]:
     EStats, MStats = get_Evol_Manif_stats(Animal)
     for Expi in range(1, len(EStats)+1):
         explabel = "%s_Exp%02d" % (Animal, Expi)
-        data_interp, lut, actmap, bslmean = load_data_interp(Animal, Expi)
+        meta = load_meta(Animal, Expi, savedir=savedir)
+        data_interp, lut, actmap, bslmean = load_data_interp(Animal, Expi, savedir=savedir)
         df, lvlset_dict = analyze_levelsets_topology(data_interp, nlevels=21)
         figh, axh = visualize_levelsets_all(data_interp, nlevels=21, print_info=False)
         saveallforms(sumdir, "%s_levelsets_all"%explabel, figh)
-        figh2, axh2 = plot_levelsets_topology(df, bslmean, explabel)
+        figh2, axh2 = plot_levelsets_topology(df, bslmean, meta.expstr)
         saveallforms(sumdir, "%s_levelsets_topo_profile"%explabel, figh2)
+        df.to_csv(join(lvldir, "%s_levelsets_topo_profile.csv"%explabel))
+        pkl.dump(lvlset_dict, open(join(lvldir, "%s_levelsets.pkl"%explabel), "wb"))
+        plt.close("all")
 #%%
-lvlsets = find_contours(data_interp, rngmax - 1)
-plt.figure(figsize=(6, 5))
-plt.subplot(111)
-plt.imshow(data_interp, )  # origin="lower")
-plt.plot(lvlsets[0][:, 1], lvlsets[0][:, 0], "red")
-plt.colorbar()
-plt.show()
+def get_lowest_single_level(df, tolerance=1):
+    is_single_branch = df.n_branch == 1
+    is_single_loop = df.n_loop == 1
+    nlvl = df.shape[0]
+    # for i in range(nlvl-1, 0, -1):
+    branch_lowest_idx = nlvl - 1
+    for i in reversed(df.index):
+        if i == nlvl - 1: continue
+        if is_single_branch[i]:
+            continue
+        else:
+            branch_lowest_idx = i + 1
+            break
+
+    loop_lowest_idx = nlvl - 1
+    for i in reversed(df.index):
+        if i == nlvl - 1: continue
+        if is_single_loop[i]:
+            continue
+        else:
+            loop_lowest_idx = i + 1
+            break
+
+    return branch_lowest_idx, loop_lowest_idx
+
+get_lowest_single_level(df, )
+#%%
+ExpNum = {"Alfa": 46, "Beto": 45}
+syn_col = []
+for Animal in ["Alfa", "Beto"]:
+    for Expi in range(1, ExpNum[Animal]):
+        meta = load_meta(Animal, Expi, savedir=savedir)
+        data_interp, lut, actmap, bslmean = load_data_interp(Animal, Expi, savedir=savedir)
+        df, lvlset_dict = analyze_levelsets_topology(data_interp, nlevels=21)
+        nbranch_AUC = np.trapz(df.n_branch, df.level_maxfrac)
+        nloop_AUC = np.trapz(df.n_loop, df.level_maxfrac)
+        nline_AUC = np.trapz(df.n_line, df.level_maxfrac)
+        nbranch_wsum = np.dot(df.n_branch, df.level_maxfrac)
+        nloop_wsum = np.dot(df.n_loop, df.level_maxfrac)
+        nline_wsum = np.dot(df.n_line, df.level_maxfrac)
+        branch_lowest_idx, loop_lowest_idx = get_lowest_single_level(df, )
+        branch_lowest_lvl, loop_lowest_lvl = df.level_maxfrac[branch_lowest_idx], df.level_maxfrac[loop_lowest_idx]
+        S = edict(Animal=Animal, Expi=Expi, expstr=meta.expstr, area=meta.area,
+                  nbranch_AUC=nbranch_AUC, nloop_AUC=nloop_AUC, nline_AUC=nline_AUC,
+                  nbranch_wsum=nbranch_wsum, nloop_wsum=nloop_wsum, nline_wsum=nline_wsum,
+                  branch_lowest_lvl=branch_lowest_lvl, loop_lowest_lvl=loop_lowest_lvl,
+                  branch_lowest_idx=branch_lowest_idx, loop_lowest_idx=loop_lowest_idx)
+        syn_col.append(S)
+syn_df = pd.DataFrame(syn_col)
+syn_df["area_idx"] = syn_df.area.map({"V1": 0, "V4": 1, "IT": 2})
+#%%
+valmsk = ~((syn_df.Animal == "Alfa") & (syn_df.Expi == 10))
+df_summary = syn_df[valmsk].groupby("area", sort=False).agg(["mean", "sem"])
+#%%
+df_summary.T
+#%%
+
+#%% Collect feature set of topological signatures
+topofeatmat = []
+for Animal in ["Alfa", "Beto"]:
+    for Expi in range(1, ExpNum[Animal]):
+        meta = load_meta(Animal, Expi, savedir=savedir)
+        data_interp, lut, actmap, bslmean = load_data_interp(Animal, Expi, savedir=savedir)
+        df, lvlset_dict = analyze_levelsets_topology(data_interp, nlevels=21)
+        featvec = np.concatenate([df.n_loop, df.n_line, ]) # df.n_branch,
+        topofeatmat.append(featvec)
+topofeatmat = np.array(topofeatmat)
 
 #%%
-lvlsets = find_contours(actmap_pole, rngmax-5)
-plt.figure(figsize=(6, 5))
-plt.subplot(111)
-plt.imshow(actmap_pole, )  # origin="lower")
-plt.plot(lvlsets[0][:, 1], lvlsets[0][:, 0], "red")
-plt.colorbar()
+from umap import UMAP
+import umap.plot
+umapper = UMAP(n_neighbors=10, min_dist=0.1, metric="manhattan", random_state=42)
+umap_data = umapper.fit_transform(topofeatmat[valmsk])
+#%%
+figh, ax = plt.subplots(1, 1, figsize=(7, 7))
+umap.plot.points(umapper, labels=syn_df.area[valmsk],
+                 theme='viridis', width=600, height=600, alpha=0.8,
+                 color_key={"V1": "#7920FF", "V4": "#2CA02C", "IT":"#FF7F0E"})
+# saveallforms(umapdir, "topol_umap_area", figh)
 plt.show()
+#%%
+figh, ax = plt.subplots(1, 1, figsize=(7, 7))
+ax = umap.plot.points(umapper, values=syn_df.loop_lowest_lvl[valmsk], cmap="viridis",
+                 width=600, height=600, alpha=0.8, ax=ax, background="black")
+plt.colorbar(ax.collections[0], ax=ax)
+# saveallforms(umapdir, "topol_umap_loop_lowest_lvl", figh)
+plt.show()
+#%%
+plt.figure()
+plt.scatter(umap_data[:, 0], umap_data[:, 1], c=syn_df.loop_lowest_lvl[valmsk], s=syn_df.area[valmsk], cmap="tab10")
+plt.show()
+
+
