@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from easydict import EasyDict as edict
 from scipy.stats import pearsonr, spearmanr
 from skimage.measure import find_contours
@@ -108,32 +109,156 @@ for lvl in levels:
         plt.scatter(lvl, max(dist)/min(dist), s=9, alpha=0.5)
 plt.show()
 #%%
-lvlmax = np.max(levels)
-maxidx = np.unravel_index(data_interp.argmax(), data_interp.shape)
-maxpnt_sph = _idx2deg2pnt_vec(maxidx)
-levels = [*lvlset_dict.keys()]
-geom_col = []
-for lvl in levels:
-    lvlset = lvlset_dict[lvl]
-    for segm in lvlset:
-        isloop = is_close_loop(segm)
-        isinside = isloop and (maxidx[0] < segm[:, 0].max()) and (maxidx[0] > segm[:, 0].min()) \
-                          and (maxidx[1] < segm[:, 1].max()) and (maxidx[1] > segm[:, 1].min())
-        lvlset_sph = _idx2deg2pnt_vec(segm)
-        dist = sphere_arc_dist2pnt(lvlset_sph, maxpnt_sph)
-        distmat = sphere_arc_dist2curve(lvlset_sph, lvlset_sph)
-        geom_col.append(edict({"level": lvl, "isloop": isloop, "isinside": isloop and True,
-                               "angdist_max": max(dist), "angdist_min": min(dist),
-                               "angdist_mean": np.mean(dist), "angdist_std": np.std(dist),
-                               "angdist_ratio": max(dist)/min(dist),
-                               "level_maxnorm": lvl / lvlmax,
-                               "distmat_max": distmat.max()}))
-df_geom = pd.DataFrame(geom_col)
+def analyze_levelsets_geometry(data_interp, lvlset_dict=None, nlevels=21):
+    if lvlset_dict is None:
+        df, lvlset_dict = analyze_levelsets_topology(data_interp, nlevels=nlevels, )
+    levels = [*lvlset_dict.keys()]
+    lvlmax = np.max(levels)
+    maxidx = np.unravel_index(data_interp.argmax(), data_interp.shape)
+    maxpnt_sph = _idx2deg2pnt_vec(maxidx)
+    geom_col = []
+    geom_m_col = []
+    for lvl in levels:
+        lvlset = lvlset_dict[lvl]
+        # this part compute geometry for the level set of all segments
+        if len(lvlset) > 0:
+            lvlset_merged = np.concatenate(lvlset, axis=0)
+            lvlset_m_sph = _idx2deg2pnt_vec(lvlset_merged)
+            dist_m = sphere_arc_dist2pnt(lvlset_m_sph, maxpnt_sph)
+            distmat_m = sphere_arc_dist2curve(lvlset_m_sph, lvlset_m_sph)
+            geom_m_col.append(edict({"level": lvl,
+                                   "angdist_max": max(dist_m), "angdist_min": min(dist_m),
+                                   "angdist_mean": np.mean(dist_m), "angdist_std": np.std(dist_m),
+                                   "angdist_ratio": max(dist_m) / min(dist_m),
+                                   "level_maxnorm": lvl / lvlmax,
+                                   "distmat_max": np.nanmax(distmat_m)}))
+        # this part compute geometry each segment independently
+        for segm in lvlset:
+            isloop = is_close_loop(segm)
+            # TODO: point in polygon test. this one is crude.
+            isinside = isloop and (maxidx[0] < segm[:, 0].max()) and (maxidx[0] > segm[:, 0].min()) \
+                              and (maxidx[1] < segm[:, 1].max()) and (maxidx[1] > segm[:, 1].min())
+            lvlset_sph = _idx2deg2pnt_vec(segm)
+            dist = sphere_arc_dist2pnt(lvlset_sph, maxpnt_sph)
+            distmat = sphere_arc_dist2curve(lvlset_sph, lvlset_sph)
+            geom_col.append(edict({"level": lvl, "isloop": isloop, "isinside": isinside,
+                                   "angdist_max": max(dist), "angdist_min": min(dist),
+                                   "angdist_mean": np.mean(dist), "angdist_std": np.std(dist),
+                                   "angdist_ratio": max(dist)/min(dist),
+                                   "level_maxnorm": lvl / lvlmax,
+                                   "distmat_max": np.nanmax(distmat)}))
+    df_geom = pd.DataFrame(geom_col)
+    df_geom_mg = pd.DataFrame(geom_m_col)
+    return df_geom, df_geom_mg
+
+def plot_levelset_geometry(df_geom, lvlmax=None, bslmean=None, titlestr=""):
+    if "isloop" in df_geom.columns:
+        huevar = "isloop"
+    else:
+        huevar = None
+    # plot min max mean dist
+    figh, axh = plt.subplots(1, 1, figsize=(5, 4))
+    sns.scatterplot(x="level", y="angdist_min", data=df_geom,
+                    hue=huevar, ax=axh, alpha=0.6,)
+    sns.scatterplot(x="level", y="angdist_max", data=df_geom,
+                    hue=huevar, ax=axh, alpha=0.6, )
+    sns.scatterplot(x="level", y="angdist_mean", data=df_geom,
+                    hue=huevar, ax=axh, alpha=0.9, )
+    if bslmean is not None:
+        axh.axvline(bslmean, linestyle="--", color="k")
+    if lvlmax is not None:
+        plt.scatter(lvlmax, 0, c="k", s=64)
+    axh.set_xlabel("Level")
+    axh.set_ylabel("Angular distance (rad)")
+    axh.set_title(titlestr)
+    figh.show()
+    # plot ratio
+    figh1, axh1 = plt.subplots(1, 1, figsize=(5, 4))
+    sns.scatterplot(x="level", y="angdist_ratio", data=df_geom, hue=huevar, ax=axh1)
+    # sns.scatterplot(x="level", y="angdist_std", data=df_geom, hue="isloop", ax=axh1)
+    # sns.pointplot(x="level", y="angdist_ratio", hue="isloop", data=df_geom, join=False)
+    if bslmean is not None:
+        axh1.axvline(bslmean, linestyle="--", color="k")
+    if lvlmax is not None:
+        plt.scatter(lvlmax, 0, c="k", s=64)
+    axh1.set_xlabel("Level")
+    axh1.set_ylabel("Max / Min ratio")
+    axh1.set_title(titlestr)
+    figh1.show()
+
+    return figh, figh1
 #%%
-import seaborn as sns
-sns.scatterplot(x="level", y="angdist_ratio", data=df_geom, hue="isloop")
-# sns.pointplot(x="level", y="angdist_ratio", hue="isloop", data=df_geom, join=False)
+from os.path import join
+geomdir = join(savedir, "summary", "geometry")
+for Animal in ["Alfa", "Beto"]:
+    for Expi in range(1, ExpNum[Animal]+1):
+        meta = load_meta(Animal, Expi, savedir=savedir)
+        data_interp, lut, actmap, bslmean = load_data_interp(Animal, Expi, savedir=savedir)
+        df, lvlset_dict = analyze_levelsets_topology(data_interp, nlevels=21)
+        lvlmax = max(lvlset_dict.keys())
+        df_geom, df_geom_mg = analyze_levelsets_geometry(data_interp, lvlset_dict=lvlset_dict, )
+        figh, figh1 = plot_levelset_geometry(df_geom, lvlmax, bslmean, titlestr=meta.expstr)
+        saveallforms(geomdir, f"{Animal}_{Expi:02d}_geom_minmax", figh)
+        saveallforms(geomdir, f"{Animal}_{Expi:02d}_geom_ratio", figh1)
+        figh_m, figh1_m = plot_levelset_geometry(df_geom_mg, lvlmax, bslmean, titlestr=meta.expstr)
+        saveallforms(geomdir, f"{Animal}_{Expi:02d}_geom_minmax_merg", figh_m)
+        saveallforms(geomdir, f"{Animal}_{Expi:02d}_geom_ratio_merg", figh1_m)
+        plt.close("all")
+        df_geom.to_csv(join(geomdir, f"{Animal}_{Expi:02d}_geom.csv"))
+        df_geom_mg.to_csv(join(geomdir, f"{Animal}_{Expi:02d}_geom_merg.csv"))
+#%%
+def peak_inside_level_msk(df_geom):
+    msk = pd.Series(False, index=df_geom.index)
+    for idx in reversed(df_geom.index):
+        if df_geom.loc[idx, "isinside"]:
+            msk[idx] = True
+        else:
+            break
+    return msk
+#%%
+geomdir = join(savedir, "summary", "geometry")
+geomsyn_col = []
+for Animal in ["Alfa", "Beto"]:
+    for Expi in range(1, ExpNum[Animal]+1):
+        meta = load_meta(Animal, Expi, savedir=savedir)
+        df_geom = pd.read_csv(join(geomdir, f"{Animal}_{Expi:02d}_geom.csv"),
+                              index_col=0)
+        df_geom_mg = pd.read_csv(join(geomdir, f"{Animal}_{Expi:02d}_geom_merg.csv", ),
+                                 index_col=0)
+        axisratio_max = df_geom[df_geom.isinside].angdist_ratio.max()
+        peakmsk = peak_inside_level_msk(df_geom)
+        axisratio_peak = df_geom[peakmsk].angdist_ratio.mean()
+        axr_peak_pool = df_geom_mg[-4:].angdist_ratio.mean()
+        S = edict(Animal=Animal, Expi=Expi, expstr=meta.expstr, area=meta.area,
+              axr_max=axisratio_max, axr_peak_mean=axisratio_peak,
+              axr_peak_mean_pool=axr_peak_pool)
+        geomsyn_col.append(S)
+geomsyn_df = pd.DataFrame(geomsyn_col)
+geomsyn_df["area_idx"] = geomsyn_df.area.map({"V1": 0, "V4": 1, "IT": 2})
+#%%
+geomsyn_df.groupby("area").agg({"axr_peak_mean_pool": ["mean", "sem"]})
+#%%
+sns.stripplot(x="area", y="axisratio_peak_mean", data=geomsyn_df)
 plt.show()
+
+#%%
+spearmanr(geomsyn_df.area_idx, geomsyn_df.axr_peak_mean_pool, nan_policy='omit',)
+
+
+
+
+
+
+#%%
+figh, axh = plt.subplots(1, 1, figsize=(5, 4))
+sns.scatterplot(x="level", y="angdist_ratio", data=df_geom, hue="isloop", ax=axh)
+# sns.pointplot(x="level", y="angdist_ratio", hue="isloop", data=df_geom, join=False)
+plt.scatter(lvlmax, 0, c="k", s=64)
+axh.axvline(bslmean, linestyle="--", color="k")
+axh.set_xlabel("Level")
+axh.set_ylabel("Angular distance (rad)")
+axh.set_title(meta.expstr)
+figh.show()
 #%%
 figh, axh = plt.subplots(1, 1, figsize=(5, 4))
 sns.scatterplot(x="level", y="angdist_min", data=df_geom, hue="isloop", ax=axh, alpha=0.6)
@@ -145,15 +270,8 @@ axh.set_xlabel("Level")
 axh.set_ylabel("Angular distance (rad)")
 axh.set_title(meta.expstr)
 figh.show()
-#%%
-figh, axh = plt.subplots(1,1, figsize=(8, 6))
-df_geom.plot("level", "angdist_mean", c=df_geom.isloop,
-             kind="scatter", cmap='Accent', ax=axh) #
-df_geom.plot("level", "angdist_min", c=df_geom.isloop,
-             kind="scatter", cmap='Accent', ax=axh) #
-df_geom.plot("level", "angdist_max", c=df_geom.isloop,
-             kind="scatter", cmap='Accent', ax=axh) #
-plt.show()
+
+
 #%%
 plot_spherical_levelset(lvlset_dict)
 
