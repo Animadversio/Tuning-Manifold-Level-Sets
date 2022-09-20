@@ -1,4 +1,4 @@
-
+import os
 from os.path import join
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -7,49 +7,16 @@ import pickle as pkl
 import numpy as np
 import pandas as pd
 from easydict import EasyDict as edict
+from scipy.stats import pearsonr, spearmanr
 from skimage.measure import find_contours
+from core.utils.plot_utils import saveallforms
 from invivo_analysis.neural_data_lib import extract_meta_data
 from invivo_analysis.neural_data_lib import get_Evol_Manif_stats, load_score_mat, mat_path
-from invivo_analysis.level_set_lib import sphere_interp_Manifold, \
-    level_set_profile, plot_levelsets
+from invivo_analysis.level_set_lib import level_set_profile, plot_levelsets
+from invivo_analysis.Manif_interp_lib import sphere_interp_Manifold, \
+    compute_all_meta, compute_all_interpolation, load_meta, load_data_interp
 
 savedir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp"
-#%% Mass calculation
-for Animal in ["Alfa", "Beto"]:
-    EStats, MStats = get_Evol_Manif_stats(Animal)
-    for Expi in range(1, len(EStats)+1):
-        data_interp, lut, actmap, bslmean = sphere_interp_Manifold(Animal, Expi, EStats, MStats)
-        assert data_interp.min() >= 0
-        np.savez(join(savedir, f"{Animal}_{Expi}_interp_map.npz"),
-                 data_interp=data_interp, actmap=actmap, bslmean=bslmean)
-        pkl.dump(lut, open(join(savedir, f"{Animal}_{Expi}_interp_lut.pkl"), "wb"))
-#%%
-meta_col = edict()
-for Animal in ["Alfa", "Beto"]:
-    EStats, MStats = get_Evol_Manif_stats(Animal)
-    meta_col[Animal] = []
-    for Expi in range(1, len(EStats)+1):
-        meta, expstr = extract_meta_data(Animal, Expi, EStats, MStats)
-        print(expstr)
-        meta_col[Animal].append(meta)
-
-pkl.dump(meta_col, open(join(savedir, "Both_metadata.pkl"), "wb"))
-#%%
-
-#%%
-def load_data_interp(Animal, Expi, savedir=savedir):
-    """ data loading routine from precomputed interpolated tuning map."""
-    data = np.load(join(savedir, f"{Animal}_{Expi}_interp_map.npz"), allow_pickle=True)
-    data_interp = data["data_interp"]
-    actmap = data["actmap"]
-    bslmean = data["bslmean"]
-    lut = np.load(join(savedir, f"{Animal}_{Expi}_interp_lut.pkl"), allow_pickle=True)
-    return data_interp, lut, actmap, bslmean
-
-
-def load_meta(Animal, Expi, savedir=savedir):
-    meta_col = pkl.load(open(join(savedir, "Both_metadata.pkl"), "rb"))
-    return meta_col[Animal][Expi-1]
 #%%
 def analyze_levelsets_topology(data_interp, levels=None, nlevels=21, ):
     rngmax = data_interp.max()
@@ -118,7 +85,6 @@ figh.show()
 figh2, axh2 = plot_levelsets_topology(df, bslmean, explabel)
 figh2.show()
 #%%
-from core.utils.plot_utils import saveallforms
 # Plot and Export topology related figures
 sumdir = join(savedir, "summary", "topology")
 lvldir = join(savedir, "levelsets")
@@ -163,7 +129,7 @@ def get_lowest_single_level(df, tolerance=1):
     return branch_lowest_idx, loop_lowest_idx
 
 get_lowest_single_level(df, )
-#%%
+#%% Extract the topological indices for each map.
 ExpNum = {"Alfa": 46, "Beto": 45}
 syn_col = []
 for Animal in ["Alfa", "Beto"]:
@@ -188,12 +154,14 @@ for Animal in ["Alfa", "Beto"]:
 syn_df = pd.DataFrame(syn_col)
 syn_df["area_idx"] = syn_df.area.map({"V1": 0, "V4": 1, "IT": 2})
 #%%
+syn_df.to_csv(join(savedir, "summary", "Both_topology_stats_synopsis.csv"))
+
+#%% Evaluate the topological indices as a function of cortical level
 valmsk = ~((syn_df.Animal == "Alfa") & (syn_df.Expi == 10))
 df_summary = syn_df[valmsk].groupby("area", sort=False).agg(["mean", "sem"])
-#%%
 df_summary.T
-#%%
 
+#%% UMAP reduction of the topological signatures
 #%% Collect feature set of topological signatures
 topofeatmat = []
 for Animal in ["Alfa", "Beto"]:
@@ -208,25 +176,46 @@ topofeatmat = np.array(topofeatmat)
 #%%
 from umap import UMAP
 import umap.plot
+umapdir = join(savedir, "summary", "topology_UMAP")
+os.makedirs(umapdir, exist_ok=True)
+#%%
 umapper = UMAP(n_neighbors=10, min_dist=0.1, metric="manhattan", random_state=42)
 umap_data = umapper.fit_transform(topofeatmat[valmsk])
 #%%
 figh, ax = plt.subplots(1, 1, figsize=(7, 7))
 umap.plot.points(umapper, labels=syn_df.area[valmsk],
                  theme='viridis', width=600, height=600, alpha=0.8,
-                 color_key={"V1": "#7920FF", "V4": "#2CA02C", "IT":"#FF7F0E"})
-# saveallforms(umapdir, "topol_umap_area", figh)
-plt.show()
+                 color_key={"V1": "#7920FF", "V4": "#2CA02C", "IT":"#FF7F0E"}, ax=ax)
+saveallforms(umapdir, "topol_umap_area", figh)
+figh.show()
 #%%
-figh, ax = plt.subplots(1, 1, figsize=(7, 7))
-ax = umap.plot.points(umapper, values=syn_df.loop_lowest_lvl[valmsk], cmap="viridis",
-                 width=600, height=600, alpha=0.8, ax=ax, background="black")
-plt.colorbar(ax.collections[0], ax=ax)
-# saveallforms(umapdir, "topol_umap_loop_lowest_lvl", figh)
-plt.show()
+for valuenm in ["branch_lowest_lvl", "loop_lowest_lvl", "branch_lowest_idx", "loop_lowest_idx",]:
+    figh, ax = plt.subplots(1, 1, figsize=(7, 7))
+    ax = umap.plot.points(umapper, values=syn_df[valuenm][valmsk], cmap="viridis",
+                     width=600, height=600, alpha=0.8, ax=ax, background="black")
+    # plt.colorbar(ax.collections[0], ax=ax)
+    ax.set_title(f"Topological Signature UMAP\nValue colormap {valuenm}")
+    saveallforms(umapdir, f"topol_umap_{valuenm}", figh)
+    plt.show()
+#%% export color map
+for valuenm in ["branch_lowest_lvl", "loop_lowest_lvl", "branch_lowest_idx", "loop_lowest_idx",]:
+    figh, ax = plt.subplots(1, 1, figsize=(7, 7))
+    ax = umap.plot.points(umapper, values=syn_df[valuenm][valmsk], cmap="viridis",
+                     width=600, height=600, alpha=0.8, ax=ax, background="black")
+    plt.colorbar(ax.collections[0], ax=ax)
+    ax.set_title(f"Topological Signature UMAP\nValue colormap {valuenm}")
+    plt.tight_layout()
+    saveallforms(umapdir, f"topol_umap_{valuenm}_colorbar", figh)
+    plt.show()
+
 #%%
 plt.figure()
 plt.scatter(umap_data[:, 0], umap_data[:, 1], c=syn_df.loop_lowest_lvl[valmsk], s=syn_df.area[valmsk], cmap="tab10")
 plt.show()
-
+#%%
+#%%
+print(spearmanr(syn_df.loop_lowest_idx[valmsk], umap_data[:, 0]))
+print(spearmanr(syn_df.loop_lowest_idx[valmsk], umap_data[:, 1]))
+#%%
+spearmanr(syn_df.loop_lowest_idx[valmsk], syn_df.area_idx[valmsk])
 
