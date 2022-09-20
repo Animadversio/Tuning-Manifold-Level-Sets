@@ -27,6 +27,11 @@ def sweep_folder(root, dirnm_pattern=".*_max_abinit$", sum_sfx="summary"):
         4. Save `sumdict` in `sumdir`.
     """
     sumdir = join(root, sum_sfx)
+    if os.path.exists(join(sumdir, "diversity_z_summary.pt")):
+        print("Summary already exists. Skipping.")
+        sumdict = torch.load(join(sumdir, "diversity_z_summary.pt"))
+        return sumdict, sumdir
+
     os.makedirs(sumdir, exist_ok=True)
     repatt = re.compile(dirnm_pattern)  # (".*_max$") (".*_min$")
     dirnms = os.listdir(root)
