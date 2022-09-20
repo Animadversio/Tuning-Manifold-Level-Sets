@@ -118,11 +118,17 @@ for layer in layerlist:
         # plt.show()
         plt.close("all")
         # raise Exception("stop")
+#%%
+def _regress2level(df, varname, ):
+    """wrapper to deal with nan value in the dataframe """
+    valmsk = (~np.isnan(df[varname])) & (df["level_fr"] > 0.0)
+    slp, bias = np.polyfit(df["level_fr"][valmsk], df[varname][valmsk], 1)
+    return slp, bias
 #%% Export figures for layers
 
 netname = "resnet50_linf8"
 outroot = join(r"E:\insilico_exps\proto_diversity", netname)
-chan_list = [*range(10), ] # *range(20,60)
+chan_list = [*range(10), *range(20,60)] #*range(10, 20)
 syn_col = []
 for layeri, layer in zip([6,5,4,3,2,1], layerlist, ):
     for chan in chan_list:
@@ -133,18 +139,36 @@ for layeri, layer in zip([6,5,4,3,2,1], layerlist, ):
         maxmin_rat = df["imdist_m_max"] / df["imdist_m_min"]
         glbloc_max_rat = df["imdist_m_max_abinit"] / df["imdist_m_max"]
         glbloc_none_rat = df["imdist_m_none_abinit"] / df["imdist_m_none"]
+        slp_min, bias_min = _regress2level(df, "imdist_m_min")
+        slp_max, bias_max = _regress2level(df, "imdist_m_max")
+        slp_mab, bias_mab = _regress2level(df, "imdist_m_max_abinit")
+        slp_maxmin_ratio = slp_max / slp_min
+        bias_glbloc_ratio = bias_mab / bias_max
         S = edict(layeri=layeri, chan=chan, layer=layer, unitlabel=unitlabel, score_base=df.level.max(),
                   maxmin_ratio_m=maxmin_rat[-5:].mean(), maxmin_ratio_peak=maxmin_rat[-2:].mean(),
                   glbloc_max_ratio_m=glbloc_max_rat[-5:].mean(), glbloc_max_ratio_peak=glbloc_max_rat[-2:].mean(),
                   glbloc_none_ratio_m=glbloc_none_rat[-5:].mean(), glbloc_none_ratio_peak=glbloc_none_rat[-2:].mean(),
-                  )
+                  slp_min=slp_min, bias_min=bias_min, slp_max=slp_max, bias_max=bias_max, slp_mab=slp_mab, bias_mab=bias_mab,
+                  slp_maxmin_ratio=slp_maxmin_ratio, bias_glbloc_ratio=bias_glbloc_ratio,)
         syn_col.append(S)
 df_syn = pd.DataFrame(syn_col)
 #%%
-df_summary = df_syn.groupby("layer").mean().T
+df_syn["layer_short"] = df_syn.layer.apply(lambda x: x.replace(".Bottleneck", "-Btn").strip("."))
+df_syn.to_csv(join(syndir, "stats_synopsis.csv"))
 #%%
-df_summary
+df_summary = df_syn.groupby("layer").agg(["mean", "sem"]).T
+df_summary.to_csv(join(syndir, "stats_summary_per_area.csv"))
 # df.to_csv(join(syndir, "%s_imdist_score_curve.csv"%unitlabel))
+#%%
+import seaborn as sns
+sumfigdir = r"E:\insilico_exps\proto_diversity\resnet50_linf8\summary"
+#%%
+fig, ax = plt.subplots(1,1, figsize=(4, 6))
+sns.stripplot(x="layer_short", y="maxmin_ratio_peak", data=df_syn, jitter=0.2, ax=ax, alpha=0.6)
+plt.xticks(rotation=35)
+plt.tight_layout()
+plt.show()
+
 #%%
 df_col = []
 for sfx in ["min", "none", "max", "max_abinit", "none_abinit"]:
