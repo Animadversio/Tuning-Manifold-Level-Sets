@@ -1,3 +1,6 @@
+"""Generate plot for the interpretable transformation of the image figure.
+Find the reference images and plot montage for them 
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
