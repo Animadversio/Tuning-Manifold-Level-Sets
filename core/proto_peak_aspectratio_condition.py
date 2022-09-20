@@ -137,6 +137,8 @@ for layeri, layer in zip([6,5,4,3,2,1], layerlist, ):
         outrf_dir = join(outroot, unitlabel+"_rf")
         df = pd.read_csv(join(syndir, "%s_imdist_score_curve.csv" % unitlabel))
         maxmin_rat = df["imdist_m_max"] / df["imdist_m_min"]
+        maxnone_rat = df["imdist_m_max"] / df["imdist_m_none"]
+        nonemin_rat = df["imdist_m_none"] / df["imdist_m_min"]
         glbloc_max_rat = df["imdist_m_max_abinit"] / df["imdist_m_max"]
         glbloc_none_rat = df["imdist_m_none_abinit"] / df["imdist_m_none"]
         slp_min, bias_min = _regress2level(df, "imdist_m_min")
@@ -146,6 +148,8 @@ for layeri, layer in zip([6,5,4,3,2,1], layerlist, ):
         bias_glbloc_ratio = bias_mab / bias_max
         S = edict(layeri=layeri, chan=chan, layer=layer, unitlabel=unitlabel, score_base=df.level.max(),
                   maxmin_ratio_m=maxmin_rat[-5:].mean(), maxmin_ratio_peak=maxmin_rat[-2:].mean(),
+                  maxnone_ratio_m=maxnone_rat[-5:].mean(), maxnone_ratio_peak=maxnone_rat[-2:].mean(),
+                  nonemin_ratio_m=nonemin_rat[-5:].mean(), nonemin_ratio_peak=nonemin_rat[-2:].mean(),
                   glbloc_max_ratio_m=glbloc_max_rat[-5:].mean(), glbloc_max_ratio_peak=glbloc_max_rat[-2:].mean(),
                   glbloc_none_ratio_m=glbloc_none_rat[-5:].mean(), glbloc_none_ratio_peak=glbloc_none_rat[-2:].mean(),
                   slp_min=slp_min, bias_min=bias_min, slp_max=slp_max, bias_max=bias_max, slp_mab=slp_mab, bias_mab=bias_mab,
@@ -162,12 +166,25 @@ df_summary.to_csv(join(syndir, "stats_summary_per_area.csv"))
 #%%
 import seaborn as sns
 sumfigdir = r"E:\insilico_exps\proto_diversity\resnet50_linf8\summary"
+def plot_var_summary(df_syn, varnm, by="layer_short", ax=None, cutoff_q=0.995, **kwargs):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(4, 6))
+    sns.stripplot(x=by, y=varnm, data=df_syn, jitter=0.2, ax=ax, alpha=0.6)
+    plt.xticks(rotation=35)
+    plt.ylim(None, df_syn[varnm].quantile(cutoff_q))
+    plt.tight_layout()
+    saveallforms(sumfigdir, f"{varnm}_strip_layer")
+    plt.show()
+    return ax.figure
 #%%
-fig, ax = plt.subplots(1,1, figsize=(4, 6))
-sns.stripplot(x="layer_short", y="maxmin_ratio_peak", data=df_syn, jitter=0.2, ax=ax, alpha=0.6)
-plt.xticks(rotation=35)
-plt.tight_layout()
-plt.show()
+plot_var_summary(df_syn, "maxmin_ratio_m")
+plot_var_summary(df_syn, "maxmin_ratio_m")
+plot_var_summary(df_syn, "maxnone_ratio_m")
+plot_var_summary(df_syn, "nonemin_ratio_m")
+plot_var_summary(df_syn, "glbloc_none_ratio_m")
+#%%
+# plot_var_summary(df_syn, "slp_mab")
+plot_var_summary(df_syn, "bias_mab")
 
 #%%
 df_col = []
