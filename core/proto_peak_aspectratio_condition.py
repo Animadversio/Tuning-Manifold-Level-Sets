@@ -216,7 +216,7 @@ def plot_var_summary(df_syn, varnm, by="layer_short", ax=None,
                      max_cutoff_q=0.995, savefig=True, **kwargs, ):
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(4, 6))
-    ax = sns.stripplot(x=by, y=varnm, data=df_syn, jitter=0.2, ax=ax, alpha=0.6)
+    ax = sns.stripplot(x=by, y=varnm, data=df_syn, jitter=0.2, ax=ax, alpha=0.6, **kwargs,)
     plt.xticks(rotation=35)
     plt.ylim(bottom=None, top=df_syn[varnm].quantile(max_cutoff_q))
     plt.tight_layout()
@@ -233,15 +233,15 @@ plot_var_summary(df_syn, "nonemin_ratio_m")
 #%%
 plot_var_summary(df_syn, "glbloc_none_ratio_m")
 #%%
-figh, ax = plot_var_summary(df_syn, "maxmin_ratio_m", savefig=False)
-figh.set_size_inches(3, 6)
+figh, ax = plot_var_summary(df_syn, "maxmin_ratio_m", savefig=False, palette="flare")
+figh.set_size_inches(3.2, 6)
 ax.axhline(1, color="k", linestyle="--")
 ax.set_ylim(bottom=0, )
 saveallforms(sumfigdir, "maxmin_ratio_m_strip_layer_robust_edit", figh=figh)
 figh.show()
 #%%
-figh, ax = plot_var_summary(df_syn, "glbloc_max_ratio_m", savefig=False)
-figh.set_size_inches(3, 6)
+figh, ax = plot_var_summary(df_syn, "glbloc_max_ratio_m", savefig=False, palette="flare")
+figh.set_size_inches(3.2, 6)
 ax.axhline(1, color="k", linestyle="--")
 ax.set_ylim(bottom=0, )
 saveallforms(sumfigdir, "glbloc_max_ratio_m_strip_layer_robust_edit", figh=figh)
