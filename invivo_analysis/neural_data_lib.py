@@ -34,6 +34,13 @@ def get_Evol_Manif_stats(Animal, mat_path=mat_path):
                      squeeze_me=True, chars_as_strings=True)['EStats']
     return EStats, MStats
 
+
+def get_Basis_stats(Animal, mat_path=mat_path):
+    basisStats = loadmat(join(mat_path, Animal + "_Basis_stats.mat"), struct_as_record=False,
+                     squeeze_me=True)['basisStats']
+    ReprStats = loadmat(join(mat_path, Animal + "_ImageRepr.mat"), struct_as_record=False,
+                     squeeze_me=True)['ReprStats']
+    return basisStats, ReprStats
 #%%
 def extract_meta_data(Animal, Expi, EStats=None, MStats=None, ):
     """Extract metadata from EStats and MStats for Expi."""
