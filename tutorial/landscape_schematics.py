@@ -1,3 +1,6 @@
+"""
+Script for making schematics of the landscape in figure 1
+"""
 import matplotlib.pyplot as plt
 # 3d plot of surface
 from mpl_toolkits.mplot3d import Axes3D

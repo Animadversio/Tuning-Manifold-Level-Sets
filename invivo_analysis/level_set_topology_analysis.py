@@ -13,7 +13,7 @@ from easydict import EasyDict as edict
 from scipy.stats import pearsonr, spearmanr
 from skimage.measure import find_contours
 from core.utils.plot_utils import saveallforms
-from invivo_analysis.neural_data_lib import extract_meta_data
+from invivo_analysis.neural_data_lib import extract_meta_data, ExpNum
 from invivo_analysis.neural_data_lib import get_Evol_Manif_stats, load_score_mat, mat_path
 from invivo_analysis.level_set_lib import level_set_profile, plot_levelsets,\
     analyze_levelsets_topology, visualize_levelsets_all, plot_levelsets_topology
@@ -75,11 +75,11 @@ for Animal in ["Alfa", "Beto"]:
         syn_col.append(S)
 syn_df = pd.DataFrame(syn_col)
 syn_df["area_idx"] = syn_df.area.map({"V1": 0, "V4": 1, "IT": 2})
+valmsk = ~((syn_df.Animal == "Alfa") & (syn_df.Expi == 10))
 #%%
 syn_df.to_csv(join(savedir, "summary", "Both_topology_stats_synopsis.csv"))
 
 #%% Evaluate the topological indices as a function of cortical level
-valmsk = ~((syn_df.Animal == "Alfa") & (syn_df.Expi == 10))
 df_summary = syn_df[valmsk].groupby("area", sort=False).agg(["mean", "sem"])
 df_summary.T
 
@@ -94,6 +94,44 @@ for Animal in ["Alfa", "Beto"]:
         featvec = np.concatenate([df.n_loop, df.n_line, ]) # df.n_branch,
         topofeatmat.append(featvec)
 topofeatmat = np.array(topofeatmat)
+#%% Gross average curve of topological signatures
+
+from matplotlib.ticker import MaxNLocator
+def plot_mean_topology_signature(topofeatmat, syn_df, savedir, ):
+    valmsk = ~((syn_df.Animal == "Alfa") & (syn_df.Expi == 10))
+    loop_slc = slice(0, 21)
+    line_slc = slice(21, 42)
+    for slc, name in zip([loop_slc, line_slc], ["loop", "line"]):
+        figh, axh = plt.subplots()
+        for area in ["V1", "V4", "IT"]:
+            msk = (syn_df.area == area) & valmsk
+            meantopo = topofeatmat[msk, slc].mean(axis=0)
+            semtopo  = topofeatmat[msk, slc].std(axis=0) / np.sqrt(msk.sum())
+            plt.plot(meantopo, label=area)
+            plt.fill_between(np.arange(21), meantopo - semtopo, meantopo + semtopo, alpha=0.3)
+        plt.legend()
+        plt.title("Mean topological signatures: N "+name)
+        axh.xaxis.set_major_locator(MaxNLocator(integer=True))
+        saveallforms(join(savedir, "summary"), f"Both_mean_topo_signature_{name}", figh)
+        plt.show()
+
+    name = "branch"
+    figh, axh = plt.subplots()
+    for area in ["V1", "V4", "IT"]:
+        msk = (syn_df.area == area) & valmsk
+        meantopo = (topofeatmat[msk, loop_slc] + topofeatmat[msk, line_slc]).mean(axis=0)
+        semtopo = (topofeatmat[msk, loop_slc] + topofeatmat[msk, line_slc]).std(axis=0) / np.sqrt(msk.sum())
+        plt.plot(meantopo, label=area)
+        plt.fill_between(np.arange(21), meantopo - semtopo, meantopo + semtopo, alpha=0.3)
+    plt.legend()
+    plt.title("Mean topological signatures: N " + name)
+    axh.xaxis.set_major_locator(MaxNLocator(integer=True))
+    saveallforms(join(savedir, "summary"), f"Both_mean_topo_signature_{name}", figh)
+    plt.show()
+    return
+
+plot_mean_topology_signature(topofeatmat, syn_df, savedir, )
+
 
 #%%
 from umap import UMAP

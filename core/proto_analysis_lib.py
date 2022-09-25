@@ -1,4 +1,4 @@
-"""Code for analyze and visualize experiment data.
+"""Code for analyze and visualize in silico experiment data.
 
 """
 import pandas as pd

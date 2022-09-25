@@ -1,3 +1,4 @@
+"""Script for extracting level sets from all Manifold experiments in vivo"""
 import os
 from os.path import join
 import matplotlib.pyplot as plt
