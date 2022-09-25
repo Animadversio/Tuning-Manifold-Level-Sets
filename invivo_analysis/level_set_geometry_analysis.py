@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from easydict import EasyDict as edict
+import matplotlib.pyplot as plt
 from scipy.stats import pearsonr, spearmanr
 from skimage.measure import find_contours
 from core.utils.plot_utils import saveallforms
@@ -9,7 +10,7 @@ from invivo_analysis.neural_data_lib import extract_meta_data
 from invivo_analysis.neural_data_lib import get_Evol_Manif_stats, load_score_mat, mat_path, ExpNum
 from invivo_analysis.level_set_lib import level_set_profile, plot_levelsets,\
     analyze_levelsets_topology, visualize_levelsets_all, plot_levelsets_topology, \
-    is_close_loop
+    is_close_loop, plot_spherical_levelset
 from invivo_analysis.Manif_interp_lib import sphere_interp_Manifold, \
     compute_all_meta, compute_all_interpolation, load_meta, load_data_interp
 savedir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp"
@@ -23,24 +24,7 @@ for Animal in ["Alfa", "Beto"]:
 figh, ax = visualize_levelsets_all(data_interp, nlevels=21, print_info=False)
 figh.show()
 #%% 3d spherical geometry routines
-def sphere_arc_dist2pnt(curve, pnt):
-    """
-    Compute the arc distance between a curve and a point on the unit sphere
-    :param curve: np.array, (N, 3)
-    :param pnt: np.array, (3,)
-    :return: np.array, (N,)
-    """
-    return np.arccos(np.sum(curve * pnt, axis=1))
-
-
-def sphere_arc_dist2curve(curve1, curve2):
-    """
-    Compute the arc distance between two curves on the unit sphere
-    :param curve1: np.array, (N, 3)
-    :param curve2: np.array, (M, 3)
-    :return: np.array, (N, M)
-    """
-    return np.arccos(np.dot(curve1, curve2.T))
+from invivo_analysis.curve_geometry_lib import sphere_arc_dist2pnt, sphere_arc_dist2curve
 
 def _idx2deg2pnt_vec(idx_curve):
     """ Convert degree in [0,180]x[0,180] to a point on the sphere
@@ -58,39 +42,6 @@ def _idx2deg2pnt_vec(idx_curve):
     return np.array([np.cos(rad[:, 1]) * np.cos(rad[:, 0]),
                      np.cos(rad[:, 1]) * np.sin(rad[:, 0]),
                      np.sin(rad[:, 1])]).T
-#%%
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-def plot_spherical_levelset(lvlset_dict):
-    """Plot the level set on the sphere"""
-    #TODO: color the level set by the value of the activation map
-    cmap = plt.get_cmap('viridis')
-    # normalize to the range of the activation map
-    levels = [*lvlset_dict.keys()]
-    lvlmax = np.max(levels)
-    lvlmin = np.min(levels)
-    fig = plt.figure(figsize=(8, 7))
-    ax = fig.add_subplot(111, projection='3d')
-    for lvl in levels:
-        lvlcolor = cmap((lvl - lvlmin) / (lvlmax - lvlmin))
-        lvlset = lvlset_dict[lvl]
-        for idxsegm in lvlset:
-            pnt = _idx2deg2pnt_vec(idxsegm)
-            ax.scatter(pnt[:, 0], pnt[:, 1], pnt[:, 2],
-                       s=9, color=lvlcolor, alpha=0.3)
-            ax.plot(pnt[:, 0], pnt[:, 1], pnt[:, 2], color=lvlcolor,
-                    alpha=0.3)
-    ax.scatter(0, 0, 0, c="k", s=100)
-    # ax.scatter(maxpnt[:, 0], maxpnt[:, 1], maxpnt[:, 2], c="r", s=200, marker="*")
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(-1, 1)
-    ax.set_zlim(-1, 1)
-    ax.view_init(azim=-30, elev=10)  # set view
-    ax.set_box_aspect((1, 1, 1))  # set aspect ratio
-    plt.tight_layout()
-    plt.show()
-    return fig, ax
-
 #%%
 maxidx = np.unravel_index(data_interp.argmax(), data_interp.shape)
 maxpnt_sph = _idx2deg2pnt_vec(maxidx)
@@ -273,6 +224,7 @@ figh.show()
 
 
 #%%
+from invivo_analysis.level_set_lib import plot_spherical_levelset
 plot_spherical_levelset(lvlset_dict)
 
 ax.scatter(maxpnt[:, 0], maxpnt[:, 1], maxpnt[:, 2], c="r", s=200, marker="*")

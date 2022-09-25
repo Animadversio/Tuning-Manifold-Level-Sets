@@ -112,6 +112,56 @@ def plot_levelsets_topology(df, bslmean=None, explabel="", axh=None):
     return figh, axh
 
 
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+def _idx2deg2pnt_vec(idx_curve):
+    """ Convert degree in [0,180]x[0,180] to a point on the sphere
+    :param idx_curve: np.array, (N, 2).
+                Will format as such if it's 1d tuple, or list
+    :return: np.array, (N, 3)
+    """
+    # rad = idx_curve
+    if type(idx_curve) is not np.ndarray:
+        idx_curve = np.array(idx_curve)
+    if idx_curve.ndim == 1:
+        idx_curve = idx_curve[np.newaxis, :]
+    deg = idx_curve - 90
+    rad = deg / 180 * np.pi
+    return np.array([np.cos(rad[:, 1]) * np.cos(rad[:, 0]),
+                     np.cos(rad[:, 1]) * np.sin(rad[:, 0]),
+                     np.sin(rad[:, 1])]).T
+
+
+def plot_spherical_levelset(lvlset_dict):
+    """Plot the level set on the sphere"""
+    #TODO: color the level set by the value of the activation map
+    cmap = plt.get_cmap('viridis')
+    # normalize to the range of the activation map
+    levels = [*lvlset_dict.keys()]
+    lvlmax = np.max(levels)
+    lvlmin = np.min(levels)
+    fig = plt.figure(figsize=(8, 7))
+    ax = fig.add_subplot(111, projection='3d')
+    for lvl in levels:
+        lvlcolor = cmap((lvl - lvlmin) / (lvlmax - lvlmin))
+        lvlset = lvlset_dict[lvl]
+        for idxsegm in lvlset:
+            pnt = _idx2deg2pnt_vec(idxsegm)
+            ax.scatter(pnt[:, 0], pnt[:, 1], pnt[:, 2],
+                       s=9, color=lvlcolor, alpha=0.3)
+            ax.plot(pnt[:, 0], pnt[:, 1], pnt[:, 2], color=lvlcolor,
+                    alpha=0.3)
+    ax.scatter(0, 0, 0, c="k", s=100)
+    # ax.scatter(maxpnt[:, 0], maxpnt[:, 1], maxpnt[:, 2], c="r", s=200, marker="*")
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
+    ax.set_zlim(-1, 1)
+    ax.view_init(azim=-30, elev=10)  # set view
+    ax.set_box_aspect((1, 1, 1))  # set aspect ratio
+    plt.tight_layout()
+    plt.show()
+    return fig, ax
+
 if __name__ == "__main__":
     #%%
     Animal = "Alfa"
