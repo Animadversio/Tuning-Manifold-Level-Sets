@@ -33,15 +33,15 @@ def level_set_profile(level_sets):
     return n_branch, n_loop, n_line
 
 
-def plot_levelsets(level_sets, actmap=None, ax=None, **kwargs):
+def plot_levelsets(level_sets, actmap=None, ax=None, cmap=None, **kwargs):
     """Plot a list of Nx2 curves on the plane."""
     if ax is None:
         ax = plt.gca()
     if actmap is not None:
-        im = ax.imshow(actmap, **kwargs)
+        im = ax.imshow(actmap, cmap=cmap)
         plt.colorbar(im, ax=ax)
     for curve in level_sets:
-        ax.plot(curve[:, 1], curve[:, 0], "red")
+        ax.plot(curve[:, 1], curve[:, 0], "red", **kwargs)
     return ax
 
 

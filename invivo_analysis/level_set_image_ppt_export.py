@@ -1,4 +1,4 @@
-
+"""Export level sets """
 from core.utils import *
 from core.utils.plot_utils import *
 from core.utils.pptx_utils import *
@@ -35,6 +35,7 @@ lvlset_figdir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp\summar
 lvlset_imgdir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp\levelset_images"
 sumdir = r"E:\OneDrive - Harvard University\Manifold_NeuralRegress\summary"
 outdir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp\summary"
+#%%
 prs = Presentation()
 # 16:9 wide screen layout
 leveli, segi = 10, 0
@@ -58,5 +59,37 @@ for Animal in ["Alfa", "Beto"]: #
 
 prs.save(join(outdir, f"Levelset_images_pptx_export_{leveli}-{segi}.pptx"))
 #%%
-view_layout_params(join(outdir, "Levelset_Template.pptx"),0);
+view_layout_params(join(outdir, "Levelset_Template.pptx"), 0)
+#%%
+from shutil import copyfile, copy2
+"""Select experiments to be showed in Figure"""
+sumdir = r"E:\OneDrive - Harvard University\Manifold_NeuralRegress\summary"
+outdir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp\summary"
+mskdir = r"E:\OneDrive - Harvard University\Manifold_attrb_mask"
+lvlset_figdir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp\summary\topology"
+lvlset_imgdir = r"E:\OneDrive - Harvard University\Manifold_sphere_interp\levelset_images"
+lvlset_figdir2 = r"E:\OneDrive - Harvard University\Manifold_sphere_interp\levelset_curves"
+outdir = r"E:\OneDrive - Harvard University\NeurRep2022_NeurIPS\Figures\NonInterpretable_LevelSet\src"
+explist = [("Alfa", 22),
+           ("Alfa", 33),
+           ("Beto", 2),
+           ("Beto", 20),
+           ("Beto", 26),
+           ("Beto", 27), ]
+leveli, segi = 10, 0
+for Animal, Expi in explist:
+    meta = load_meta(Animal, Expi)
+    title_str = meta.expstr
+    protopath = join(sumdir, "proto", f"{Animal}_Exp{Expi:02d}_manif_proto.png")
+    evolfigpath = join(sumdir, "classic_figs", f"{Animal}_Exp{Expi:02d}_Evolution.pdf")
+    maniffigpath = join(sumdir, "classic_figs", f"{Animal}_Exp{Expi:02d}_Manifold.pdf")
+    maskimgpath  = join(mskdir, f"{Animal}_Exp{Expi:02d}_mask_L2.png")
+    lvlsetfigpath = join(lvlset_figdir, f"{Animal}_Exp{Expi:02d}_levelsets_all.png")
+    lvlsetfigpath_hl = join(lvlset_figdir2, f"{Animal}_Exp{Expi:02d}_levelsets_{leveli}-{segi}.pdf")
+    lvlsetimgpath = join(lvlset_imgdir, f"{Animal}_Exp{Expi:02d}_contour_imgs_{leveli}-{segi}.jpg")
+    lvlsetimgpath_rfmsk = join(lvlset_imgdir, f"{Animal}_Exp{Expi:02d}_contour_imgs_{leveli}-{segi}_rfmsk.jpg")
+    # copy all these files to the outdir
+    for fp in [maskimgpath, protopath, evolfigpath, maniffigpath,
+               lvlsetfigpath, lvlsetfigpath_hl, lvlsetimgpath, lvlsetimgpath_rfmsk]:
+        copy2(fp, outdir)
 

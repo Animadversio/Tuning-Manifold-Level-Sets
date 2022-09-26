@@ -171,5 +171,7 @@ layer_order = ['.ReLUrelu', '.layer1.Bottleneck1', '.layer2.Bottleneck0',
        '.layer2.Bottleneck2', '.layer3.Bottleneck0', '.layer3.Bottleneck2',
        '.layer3.Bottleneck4', '.layer4.Bottleneck0', '.layer4.Bottleneck2', '.Linearfc', ]
 #%%
+[short_layername(layer) for layer in layer_order]
+#%%
 plot_mean_topology_across_layer(layer_topo_mean, layer_topo_sem, layer_order, err="sem")
 plot_mean_topology_across_layer(layer_topo_mean, layer_topo_std, layer_order, err="std")

@@ -12,7 +12,7 @@ from scipy.stats import pearsonr, spearmanr
 from skimage.measure import find_contours
 from core.utils.plot_utils import saveallforms
 from invivo_analysis.neural_data_lib import extract_meta_data
-from invivo_analysis.neural_data_lib import get_Evol_Manif_stats, load_score_mat, mat_path
+from invivo_analysis.neural_data_lib import get_Evol_Manif_stats, ExpNum, load_score_mat, mat_path
 from invivo_analysis.level_set_lib import level_set_profile, plot_levelsets,\
     analyze_levelsets_topology, visualize_levelsets_all, plot_levelsets_topology
 from invivo_analysis.Manif_interp_lib import sphere_interp_Manifold, \
@@ -48,4 +48,23 @@ for Animal in ["Alfa", "Beto"]:
         df.to_csv(join(lvldir, "%s_levelsets_topo_profile.csv"%explabel))
         pkl.dump(lvlset_dict, open(join(lvldir, "%s_levelsets.pkl"%explabel), "wb"))
         plt.close("all")
-#%%
+#%% Level set with high light certain level
+sumdir = join(savedir, "summary", "topology")
+outdir = join(savedir, "levelset_curves")
+# input the level set to be highlighted
+leveli, segi = 10, 0
+for Animal in ["Alfa", "Beto"]:
+    for Expi in range(1, ExpNum[Animal]+1):
+        explabel = "%s_Exp%02d" % (Animal, Expi)
+        meta = load_meta(Animal, Expi, savedir=savedir)
+        data_interp, lut, actmap, bslmean = load_data_interp(Animal, Expi, savedir=savedir)
+        df, lvlset_dict = analyze_levelsets_topology(data_interp, nlevels=21)
+        figh, axh = visualize_levelsets_all(data_interp, nlevels=21, print_info=False)
+        levelact = list(lvlset_dict.keys())[leveli]
+        maxact = max(lvlset_dict.keys())
+        curve_hl = lvlset_dict[levelact][segi]
+        axh.plot(curve_hl[:, 1], curve_hl[:, 0], lw=4, color="blue")
+        axh.set_title("%s\nlevel %d-seg %d,  %.1f/%.1f spk/s" % (explabel, leveli, segi, levelact, maxact))
+        saveallforms(outdir, f"{explabel}_levelsets_{leveli}-{segi}", figh)
+        plt.close("all")
+
